@@ -6,7 +6,7 @@
 # what they are labelled, and which drivers a lease of one gets. A device exists while it is leased or kept
 # ready (minAvailableReplicas), and is made anew after each lease.
 #
-# Replace registry.example.com/jumpstarter/exporter with an exporter image that has these drivers.
+# The exporter image is named in kustomization.yaml, for all of them.
 #
 # Cuttlefish needs KVM: the class asks for nodes labelled jumpstarter.dev/cuttlefish=true, and runs its Pod
 # privileged under the service account cuttlefish-runtime (see ../cuttlefish-runtime.yaml).
@@ -73,8 +73,7 @@ spec:
             - vm:
                 cpus: 4
                 memory_mb: 4096
-          hmi: {}
-        name: cuttlefish
+          name: cuttlefish
         type: jumpstarter_driver_cuttlefish.driver.Cuttlefish
       - config:
           address: 127.0.0.1:6520

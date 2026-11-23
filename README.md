@@ -8,7 +8,9 @@ It is an example to copy from, taken from a working lab. Read [what has been run
 relying on a part of it.
 
 ```
-cluster/        the lab itself: Jumpstarter through its operator, and the virtual devices
+argocd/         the whole lab as Argo CD applications: one to apply, and it installs the rest
+cluster/        the lab itself: the Jumpstarter operator, Jumpstarter, and the virtual devices
+images/         the exporter image the virtual devices run
 physical/       a real device on a bench: the exporter beside it (iOS over USB, Android over USB)
 edge-gateway/   a real radio beside a real device, so that it can be tested against a virtual one
 workspace/      an Eclipse Che workspace for test engineers, with the sample project
@@ -18,16 +20,29 @@ tekton/         the same suites as an OpenShift Pipelines (Tekton) pipeline
 
 ## The lab
 
-You need a cluster with [cert-manager](https://cert-manager.io) and the Jumpstarter operator installed, and, for
-Cuttlefish, at least one x86-64 node with KVM.
+You need a cluster with [cert-manager](https://cert-manager.io) and, for Cuttlefish, at least one x86-64 node
+with KVM. Fork this repository, and in the fork:
+
+1. replace `example.com` in `cluster/jumpstarter.yaml` with your cluster's application domain;
+2. build the exporter image ([`images`](images)) and name it in `cluster/devices/kustomization.yaml`.
+
+Then, with [Argo CD](argocd):
 
 ```console
-$ kubectl create namespace jumpstarter-lab
-$ kubectl apply -f cluster/jumpstarter.yaml            # after replacing example.com with your domain
 $ kubectl label node <node> jumpstarter.dev/cuttlefish=true
-$ kubectl apply -f cluster/cuttlefish-runtime.yaml     # and the step for your cluster written in that file
-$ kubectl apply -f cluster/devices/
+$ kubectl apply -n argocd -f argocd/root.yaml
 ```
+
+or by hand, in the same order:
+
+```console
+$ kubectl apply -k cluster/operator
+$ kubectl apply -k cluster
+$ kubectl apply -k cluster/devices
+```
+
+Either way, Cuttlefish Pods have to be allowed to run privileged: `cluster/cuttlefish-runtime.yaml` says how, for
+OpenShift and for other clusters. [`argocd/README.md`](argocd/README.md) has what else Argo CD leaves to you.
 
 | File | What you get | Leased with |
 | --- | --- | --- |
@@ -46,12 +61,14 @@ $ jmp get exporters
 $ jmp shell --selector type=phone
 ```
 
-### The images
+Everything is pinned to the Jumpstarter build the lab was run with (`0.10.0-dev-246`): the operator, the
+controller and the image the exporter starts from. Move them together.
 
-The device definitions name `registry.example.com/jumpstarter/exporter`: an exporter image with the drivers they
-list (Cuttlefish, ADB with Appium, netsim, QEMU, the screen). The lab this comes from builds that image itself,
-from development branches of Jumpstarter, and **its build is not in this repository yet**. Until it is, build
-one from the Jumpstarter repository's exporter image and add the drivers a definition names.
+### The screen
+
+The devices' live screen is a driver that is not in a Jumpstarter release yet, so the devices come without it.
+`cluster/devices-with-screen` adds it, for an exporter image built with that driver: see
+[`images/README.md`](images/README.md).
 
 ## A real device beside it
 
@@ -97,7 +114,9 @@ All of it comes from one lab: a single-node OKD cluster, a Raspberry Pi 4 beside
 
 | Part | Run there | Not run |
 | --- | --- | --- |
-| The lab on OKD (Routes, self-signed certificates) | Yes | On another Kubernetes; an Ingress or Gateway in place of the Routes |
+| The lab on OKD (Routes, self-signed certificates) | Yes, installed by hand | On another Kubernetes; an Ingress or Gateway in place of the Routes |
+| Installing through Argo CD | No: the applications render, and no Argo CD has synced them | |
+| The exporter image of `images/exporter` | Built once on that cluster, not yet run as a device | The lab's own devices run an image with the screen driver added |
 | Cuttlefish phone and head unit, QEMU machine | Yes | |
 | The Bluetooth suites between the two Cuttlefish devices | Yes, also in Che and as a pipeline | |
 | An iPad over USB on the Pi | Yes | An iPhone; the quadlets do not tell them apart |

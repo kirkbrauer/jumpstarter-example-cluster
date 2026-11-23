@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# The Tekton pipeline that runs the sample project's suites. Needs OpenShift Pipelines or Tekton; leave it out otherwise.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jumpstarter-example-pipeline
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/kirkbrauer/jumpstarter-example-cluster
+    targetRevision: main
+    path: tekton
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: jumpstarter-tests
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m

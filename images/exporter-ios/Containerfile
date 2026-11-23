@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# The iOS exporter of the lab this repository comes from, as it was built there on a Raspberry Pi (arm64).
+# It is here for reference and does not build from this repository alone: it starts from an image made
+# earlier on that host (usbmuxd's tools, Node.js, Appium with the XCUITest driver), takes Jumpstarter
+# wheels of a development branch, and a scrios binary built from source (scrios has no release yet).
+#
+# The iOS exporter with the screen (scrios) and Appium: the same drivers the Mac's exporter ran, for Linux arm64.
+# Base: the earlier Appium image of this host (usbmuxd's tools, Node.js, Appium 3 with the XCUITest driver).
+FROM localhost/jumpstarter-ios-exporter:appium
+# scrios, headless and static, built from its source (it has no release yet)
+COPY scrios /usr/local/bin/scrios
+RUN chmod 0755 /usr/local/bin/scrios && /usr/local/bin/scrios --version
+# Jumpstarter and its drivers from the branch the web UI is developed against, in a virtual environment of their own
+# the base image runs Jumpstarter from source directories on PYTHONPATH: not this one
+ENV PYTHONPATH= PATH=/opt/jmp/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin GRPC_DNS_RESOLVER=native
+COPY wheels/ /tmp/wheels/
+RUN python3 -m venv /opt/jmp && /opt/jmp/bin/pip install --no-cache-dir /tmp/wheels/*.whl && rm -rf /tmp/wheels \
+ && /opt/jmp/bin/jmp version
+# Appium for the device: its XCUITest driver has to be there
+RUN APPIUM_HOME=/opt/appium/home /opt/appium/node_modules/.bin/appium driver list --installed 2>&1 | tee /tmp/appium-drivers && grep -q xcuitest /tmp/appium-drivers
+ENTRYPOINT []
+CMD ["jmp", "run", "--exporter-config", "/etc/jumpstarter/exporter.yaml"]

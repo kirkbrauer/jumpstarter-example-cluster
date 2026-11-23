@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# The whole example, as one Argo CD application that makes the others (argocd/apps):
+#
+#   kubectl apply -n argocd -f argocd/root.yaml
+#
+# In a fork, change repoURL here and in argocd/apps/*.yaml to the fork's.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jumpstarter-example
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/kirkbrauer/jumpstarter-example-cluster
+    targetRevision: main
+    path: argocd/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

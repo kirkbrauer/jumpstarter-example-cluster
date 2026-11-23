@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# What the root application installs, in the order of their sync waves: the operator, the lab, its devices.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - operator.yaml
+  - lab.yaml
+  - devices.yaml
+  # - pipeline.yaml     # with OpenShift Pipelines or Tekton installed

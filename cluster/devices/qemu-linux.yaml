@@ -6,7 +6,7 @@
 # what they are labelled, and which drivers a lease of one gets. A device exists while it is leased or kept
 # ready (minAvailableReplicas), and is made anew after each lease.
 #
-# Replace registry.example.com/jumpstarter/exporter with an exporter image that has these drivers.
+# The exporter image is named in kustomization.yaml, for all of them.
 apiVersion: virtualtarget.jumpstarter.dev/v1alpha1
 kind: VirtualTargetClass
 metadata:
@@ -62,7 +62,6 @@ spec:
       - config:
           arch: x86_64
           disk_size: 10G
-          hmi: {}
           mem: 4G
           smp: 2
         name: qemu

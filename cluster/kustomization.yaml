@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# The lab: its namespace, Jumpstarter (controller, router, provisioners) and what Cuttlefish devices run as.
+# The operator (operator/) has to be there first, and the devices (devices/) come after.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - jumpstarter.yaml
+  - cuttlefish-runtime.yaml

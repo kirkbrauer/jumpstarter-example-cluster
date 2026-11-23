@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# The same devices with their live screen (the hmi driver). It needs an exporter image built with the drivers
+# that have it: see ../../images/README.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../devices
+patches:
+  - target:
+      kind: ExporterSet
+      name: cf-.*
+    patch: |-
+      - op: add
+        path: /spec/template/spec/drivers/0/config/hmi
+        value: {}
+  - target:
+      kind: ExporterSet
+      name: qemu-linux
+    patch: |-
+      - op: add
+        path: /spec/template/spec/drivers/0/config/hmi
+        value: {}

@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# The exporter image of the virtual devices (cluster/devices): Jumpstarter's own exporter image, with Appium for
+# the Android devices.
+#
+#   podman build -t <registry>/jumpstarter/exporter:<tag> images/exporter
+#
+# JUMPSTARTER_IMAGE is the image it starts from; keep its tag the same as the controller's (cluster/operator).
+#
+# To try drivers that are not released yet, give the repository and ref they are on and the packages to take
+# from it: they are built there and installed over the image's own.
+#
+#   podman build --build-arg JUMPSTARTER_REF=<branch or commit> \
+#       --build-arg JUMPSTARTER_PACKAGES="jumpstarter-driver-cuttlefish jumpstarter-driver-qemu jumpstarter-driver-hmi" \
+#       -t <registry>/jumpstarter/exporter:<tag> images/exporter
+ARG JUMPSTARTER_IMAGE=quay.io/jumpstarter-dev/jumpstarter:0.10.0-dev-246-gea8f4f12
+
+FROM ${JUMPSTARTER_IMAGE} AS packages
+ARG JUMPSTARTER_REPO=https://github.com/jumpstarter-dev/jumpstarter.git
+ARG JUMPSTARTER_REF=
+ARG JUMPSTARTER_PACKAGES=
+USER 0
+RUN mkdir -p /wheels \
+ && if [ -n "${JUMPSTARTER_REF}" ]; then \
+      dnf install -y git && dnf clean all \
+      && git clone --filter=blob:none "${JUMPSTARTER_REPO}" /src && git -C /src checkout "${JUMPSTARTER_REF}" \
+      && for package in ${JUMPSTARTER_PACKAGES}; do \
+           (cd /src/python && uv build --wheel --package "${package}" --out-dir /wheels) || exit 1; \
+         done; \
+    fi
+
+FROM ${JUMPSTARTER_IMAGE}
+USER 0
+COPY --from=packages /wheels/ /tmp/wheels/
+RUN if ls /tmp/wheels/*.whl > /dev/null 2>&1; then \
+      uv pip install --python /jumpstarter/bin/python --no-deps --reinstall /tmp/wheels/*.whl; \
+    fi \
+ && rm -rf /tmp/wheels
+# The screen (the hmi driver, where the image has it) encodes video with these.
+RUN uv pip install --python /jumpstarter/bin/python "aiortc>=1.9.0" "av>=12.0.0" "pillow>=10.4.0"
+# Appium with UiAutomator2, for the Android devices: installed once, for every user of the image.
+# UiAutomator2 wants an Android SDK directory with platform-tools/adb (the image's own adb) and a Java runtime.
+ENV APPIUM_HOME=/opt/appium-home ANDROID_HOME=/opt/android-sdk
+RUN dnf install -y nodejs npm java-latest-openjdk-headless && dnf clean all \
+ && npm install -g --no-fund --no-audit appium \
+ && appium driver install uiautomator2 \
+ && mkdir -p /opt/android-sdk/platform-tools \
+ && ln -s "$(command -v adb)" /opt/android-sdk/platform-tools/adb \
+ && chgrp -R 0 /opt/appium-home /opt/android-sdk && chmod -R g=u,a+rX /opt/appium-home /opt/android-sdk \
+ && appium --version && appium driver list --installed 2>&1 | tail -3
+USER 65532

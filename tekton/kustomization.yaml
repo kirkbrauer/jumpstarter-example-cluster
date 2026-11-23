@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# The pipeline and its task. The run-*.yaml files beside them are single runs: `kubectl create -f` one.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - robot-suite.yaml

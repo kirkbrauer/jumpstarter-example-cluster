@@ -1,0 +1,27 @@
+# Builds the exporter image and pushes it to this repository's container registry. Run by hand.
+name: Images
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The tag to give the image
+        default: latest
+permissions:
+  contents: read
+  packages: write
+jobs:
+  exporter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: images/exporter
+          file: images/exporter/Containerfile
+          push: true
+          tags: ghcr.io/${{ github.repository }}/exporter:${{ inputs.tag }}

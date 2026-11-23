@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# The Jumpstarter operator, from Jumpstarter's own repository, at the build this lab was run with. To move to
+# another build, change the ref and the tag together, and the images in ../jumpstarter.yaml and ../../images.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - https://github.com/jumpstarter-dev/jumpstarter//controller/deploy/operator/config/default?ref=ea8f4f12d5c028d773877b8dcfbe413c16df89c5
+images:
+  - name: quay.io/jumpstarter-dev/jumpstarter-operator
+    newTag: 0.10.0-dev-246-gea8f4f12
