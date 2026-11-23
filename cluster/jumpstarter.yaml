@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# The Jumpstarter controller, router and the provisioners that make virtual devices, through the Jumpstarter
+# operator. Replace example.com with your cluster's application domain.
+#
+# As written it is for OpenShift and OKD: the endpoints are Routes, and the certificates are self-signed through
+# cert-manager. On another Kubernetes, give the endpoints the way your cluster exposes gRPC (see the operator's
+# documentation for the Jumpstarter resource); nothing else here depends on OpenShift.
+apiVersion: operator.jumpstarter.dev/v1alpha1
+kind: Jumpstarter
+metadata:
+  name: jumpstarter
+  namespace: jumpstarter-lab
+spec:
+  baseDomain: jumpstarter.apps.example.com
+  certManager:
+    enabled: true
+    server:
+      selfSigned:
+        enabled: true
+        caDuration: 87600h
+        certDuration: 8760h
+        renewBefore: 360h
+  controller:
+    replicas: 1
+    grpc:
+      endpoints:
+        - address: grpc.jumpstarter.apps.example.com:443
+          route:
+            enabled: true
+    login:
+      endpoints:
+        - address: login.jumpstarter.apps.example.com:443
+          route:
+            enabled: true
+  routers:
+    replicas: 1
+    grpc:
+      endpoints:
+        - address: router.jumpstarter.apps.example.com:443
+          route:
+            enabled: true
+  exporterSets:
+    provisioners:
+      - name: cuttlefish.jumpstarter.dev
+        enabled: true
+        replicas: 1
+      - name: qemu.jumpstarter.dev
+        enabled: true
+        replicas: 1
+  leasePolicy:
+    maxTags: 10

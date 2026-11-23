@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# What Cuttlefish devices run as. A Cuttlefish Pod starts virtual machines (KVM, tap devices), so it runs
+# privileged, under an account of its own.
+#
+#   oc label node <node> jumpstarter.dev/cuttlefish=true      # the nodes that have KVM
+#   oc apply -f cluster/cuttlefish-runtime.yaml
+#   oc adm policy add-scc-to-user privileged -n jumpstarter-lab -z cuttlefish-runtime    # OpenShift and OKD
+#
+# On a Kubernetes with Pod Security admission, the namespace has to allow privileged Pods instead:
+#   kubectl label namespace jumpstarter-lab pod-security.kubernetes.io/enforce=privileged
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cuttlefish-runtime
+  namespace: jumpstarter-lab

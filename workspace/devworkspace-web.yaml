@@ -1,0 +1,100 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# The same tools image with Jumpstarter Web itself as the workspace's editor, in the place che-code has in
+# devworkspace.yaml: the portal (exporters, leases, clients, and a lease's devices) is what the workspace's link
+# opens. `deploy.sh <user> <client config> <image> web` applies it.
+#
+# The editor is the DevWorkspaceTemplate below: it adds its endpoint and its start command to the tools container
+# (a container contribution, as che-code's is). The image already has jumpstarter-web, so nothing is injected.
+apiVersion: workspace.devfile.io/v1alpha2
+kind: DevWorkspaceTemplate
+metadata:
+  name: jumpstarter-web-editor
+spec:
+  components:
+    - name: jumpstarter-web-runtime
+      attributes:
+        controller.devfile.io/container-contribution: true
+      container:
+        # (not run: the contribution is merged into the tools container; the schema wants an image)
+        image: "@WORKSPACE_IMAGE@"
+        memoryRequest: 64Mi
+        memoryLimit: 512Mi
+        cpuRequest: 30m
+        cpuLimit: 500m
+        env:
+          # where the browser reaches the endpoint below: Che's own host, and the path its gateway gives the workspace
+          - name: JW_PUBLIC_URL
+            value: "@CHE_URL@"
+          - name: JW_BASE_PATH
+            value: "@EDITOR_PATH@"
+        endpoints:
+          # Through the workspace's gateway, as che-code's is (urlRewriteSupported): the gateway asks Che who the
+          # caller is before it forwards, and takes the path prefix off. An endpoint with a host of its own
+          # (urlRewriteSupported: false) is a plain route to the pod that nothing signs in: not for --auth gateway.
+          - name: jumpstarter-web
+            targetPort: 7070
+            exposure: public
+            protocol: https
+            secure: true
+            attributes:
+              type: main
+              cookiesAuthEnabled: true
+              discoverable: false
+              urlRewriteSupported: true
+  commands:
+    - id: start-jumpstarter-web
+      exec:
+        component: jumpstarter-web-runtime
+        # In the background: a postStart command has to end. On loopback: only the gateway in the pod reaches it.
+        commandLine: >-
+          nohup jumpstarter-web portal --auth gateway --host 127.0.0.1 --port 7070
+          --public-url "$JW_PUBLIC_URL" --base-path "$JW_BASE_PATH" --base-path-stripped
+          > "$HOME/.jumpstarter-web.log" 2>&1 &
+  events:
+    postStart:
+      - start-jumpstarter-web
+---
+apiVersion: workspace.devfile.io/v1alpha2
+kind: DevWorkspace
+metadata:
+  name: jumpstarter-web
+  annotations:
+    che.eclipse.org/che-editor: jumpstarter-web
+spec:
+  started: true
+  routingClass: che
+  contributions:
+    - name: editor
+      kubernetes:
+        name: jumpstarter-web-editor
+  template:
+    attributes:
+      controller.devfile.io/storage-type: ephemeral
+    components:
+      - name: tools
+        container:
+          image: "@WORKSPACE_IMAGE@"
+          memoryRequest: 512Mi
+          memoryLimit: 3Gi
+          cpuRequest: 100m
+          cpuLimit: "2"
+          mountSources: true
+          env:
+            - name: GRPC_DNS_RESOLVER
+              value: native
+    commands:
+      - id: client-config
+        exec:
+          component: tools
+          # as in devworkspace.yaml: the namespace's client configurations, where `jmp` keeps them
+          commandLine: >-
+            mkdir -p "${HOME}/.config/jumpstarter/clients" &&
+            for config in /etc/jumpstarter/clients/*.yaml; do
+            [ -e "$config" ] || continue;
+            install -m 600 "$config" "${HOME}/.config/jumpstarter/clients/";
+            [ -e "${HOME}/.config/jumpstarter/config.yaml" ] ||
+            jmp config client use "$(basename "$config" .yaml)"; done
+    events:
+      postStart:
+        - client-config

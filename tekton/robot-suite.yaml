@@ -1,0 +1,101 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# A Robot Framework suite against leased Jumpstarter devices, as a Tekton pipeline: the same suite, from the same
+# image, that a test engineer runs in the Che workspace (workspace). The suite leases its devices
+# itself, so the pipeline is one task.
+#
+#   oc -n <namespace> create secret generic jumpstarter-client --from-file=<client>.yaml
+#   oc -n <namespace> apply -f tekton/robot-suite.yaml
+#   oc -n <namespace> create -f tekton/run-bluetooth-pairing.yaml
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: jumpstarter-robot
+spec:
+  description: >-
+    Run a Robot Framework suite with the Jumpstarter library. The suite's own setup leases the devices, with the
+    client configuration of the `client` workspace; its reports are left in the `results` workspace.
+  params:
+    - name: image
+      description: The tools image (workspace/Containerfile), which has Jumpstarter, Robot Framework and the project.
+    - name: project
+      description: The directory of the Robot Framework project in the image, or in a workspace of yours.
+      default: /opt/jumpstarter/project
+    - name: suite
+      description: The suite to run, relative to the project.
+      default: tests
+    - name: arguments
+      description: More arguments for `robot`, for example `--variable "PHONE SELECTOR:type=phone"`.
+      type: array
+      default: []
+  workspaces:
+    - name: client
+      description: A Secret with one Jumpstarter client configuration (`<name>.yaml`).
+      readOnly: true
+    - name: results
+      description: Where `output.xml`, `log.html`, `report.html` and `xunit.xml` are written.
+  results:
+    - name: summary
+      description: The last line of Robot Framework's own summary (`1 test, 1 passed, 0 failed`).
+  steps:
+    - name: robot
+      image: $(params.image)
+      workingDir: $(params.project)
+      env:
+        # a home the step can write: `jmp` keeps the client configuration it is given there
+        - name: HOME
+          value: /tekton/home
+        - name: GRPC_DNS_RESOLVER
+          value: native
+      args: ["$(params.arguments[*])"]
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+        mkdir -p "$HOME/.config/jumpstarter/clients"
+        for config in "$(workspaces.client.path)"/*.yaml; do
+          install -m 600 "$config" "$HOME/.config/jumpstarter/clients/"
+          jmp config client use "$(basename "$config" .yaml)"
+        done
+        # the run fails when a test does: the status is robot's, not tee's
+        status=0
+        robot --outputdir "$(workspaces.results.path)" --xunit xunit.xml "$@" "$(params.suite)" \
+          | tee "$(workspaces.results.path)/console.txt" || status=$?
+        grep -E '^[0-9]+ tests?, ' "$(workspaces.results.path)/console.txt" | tail -1 | tr -d '\n' \
+          > "$(results.summary.path)"
+        exit "$status"
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: jumpstarter-robot-suite
+spec:
+  description: Lease the devices a Robot Framework suite names, run it against them, and keep its reports.
+  params:
+    - name: image
+    - name: suite
+      default: tests
+    - name: arguments
+      type: array
+      default: []
+  workspaces:
+    - name: client
+    - name: results
+  results:
+    - name: summary
+      value: $(tasks.run-suite.results.summary)
+  tasks:
+    - name: run-suite
+      taskRef:
+        name: jumpstarter-robot
+      params:
+        - name: image
+          value: $(params.image)
+        - name: suite
+          value: $(params.suite)
+        - name: arguments
+          value: ["$(params.arguments[*])"]
+      workspaces:
+        - name: client
+          workspace: client
+        - name: results
+          workspace: results

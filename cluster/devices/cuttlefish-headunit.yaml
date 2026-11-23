@@ -1,0 +1,97 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# A virtual Android Automotive head unit (Cuttlefish), leased with `device=cf-headunit` or `type=head-unit`.
+#
+# The class says how one is made (the provisioner, the image, the machine); the set says how many there may be,
+# what they are labelled, and which drivers a lease of one gets. A device exists while it is leased or kept
+# ready (minAvailableReplicas), and is made anew after each lease.
+#
+# Replace registry.example.com/jumpstarter/exporter with an exporter image that has these drivers.
+#
+# See cuttlefish-phone.yaml for what Cuttlefish needs of the cluster.
+apiVersion: virtualtarget.jumpstarter.dev/v1alpha1
+kind: VirtualTargetClass
+metadata:
+  name: cf-headunit
+  namespace: jumpstarter-lab
+spec:
+  bindingMode: Immediate
+  images:
+    exporter:
+      image: registry.example.com/jumpstarter/exporter:latest
+      imagePullPolicy: Always
+  parameters:
+    default_build: aosp-android-latest-release/aosp_cf_x86_64_auto-userdebug
+    fetch_images: true
+    runtime_memory_overhead_mb: 2048
+    runtime_privileged: true
+    service_account_name: cuttlefish-runtime
+    vm_cpus: 4
+    vm_memory_mb: 8192
+    webrtc_turn: true
+  provisioner: cuttlefish.jumpstarter.dev
+  reclaimPolicy: Delete
+  scheduling:
+    nodeSelector:
+      jumpstarter.dev/cuttlefish: 'true'
+      kubernetes.io/arch: amd64
+    resources:
+      limits:
+        memory: 10Gi
+      requests:
+        cpu: '2'
+        memory: 10Gi
+---
+apiVersion: virtualtarget.jumpstarter.dev/v1alpha1
+kind: ExporterSet
+metadata:
+  name: cf-headunit
+  namespace: jumpstarter-lab
+spec:
+  maxReplicas: 1
+  minAvailableReplicas: 1
+  minReplicas: 0
+  recycleStrategy: ExitAndReplace
+  scaleDownCooldown: 5m0s
+  selector:
+    matchLabels:
+      device: cf-headunit
+  template:
+    metadata:
+      labels:
+        device: cf-headunit
+        lab: cuttlefish
+        type: head-unit
+    spec:
+      drivers:
+      - config:
+          env_config:
+            instances:
+            - vm:
+                cpus: 4
+                memory_mb: 8192
+          hmi: {}
+        name: cuttlefish
+        type: jumpstarter_driver_cuttlefish.driver.Cuttlefish
+      - config:
+          address: 127.0.0.1:6520
+          appium:
+            capabilities:
+              appium:settings[enableMultiWindows]: true
+            env:
+              ANDROID_HOME: /opt/android-sdk
+            home: /opt/appium-home
+          server_port: 15037
+          transport: tcp
+        name: android
+        type: jumpstarter_driver_adb.driver.AdbDevice
+      - name: netsim
+        type: jumpstarter_driver_netsim.driver.Netsim
+      - name: bt_peer
+        type: jumpstarter_driver_bt_peer.driver.BtPeer
+      - config:
+          host: 127.0.0.1
+          port: 7300
+        name: bluetooth
+        type: jumpstarter_driver_network.driver.TcpNetwork
+  virtualTargetClassName: cf-headunit

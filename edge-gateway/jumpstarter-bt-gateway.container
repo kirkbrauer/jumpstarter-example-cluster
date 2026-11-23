@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# This host's Bluetooth controller as an HCI port on loopback, for the exporter beside it to offer through a
+# lease: the edge gateway that puts a virtual Bluetooth host on real radio. See README.md.
+[Unit]
+Description=Jumpstarter Bluetooth gateway (hci0 as an HCI port on 127.0.0.1:7300)
+
+[Container]
+ContainerName=jumpstarter-bt-gateway
+# Any image with Python 3: the gateway is standard library only.
+Image=localhost/jumpstarter-ios-exporter:hmi
+Network=host
+AddCapability=NET_ADMIN
+Volume=/etc/jumpstarter/bt-gateway:/gateway:ro,z
+# --address: one address for each gateway (see hci_gateway.py); devices that pair know the gateway by it.
+Exec=python3 -u /gateway/hci_gateway.py --device 0 --listen 127.0.0.1:7300 --address B8:27:EB:4A:53:01
+
+[Service]
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

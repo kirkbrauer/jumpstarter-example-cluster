@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# One run of the text message suite: messages that reach the phone reach the head unit, word for word.
+#
+#   oc -n <namespace> create -f tekton/run-bluetooth-messages.yaml
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: bluetooth-messages-
+spec:
+  pipelineRef:
+    name: jumpstarter-robot-suite
+  params:
+    - name: image
+      value: registry.example.com/jumpstarter/che-workspace:latest
+    - name: suite
+      value: tests/bluetooth_messages.robot
+  timeouts:
+    pipeline: 30m
+  workspaces:
+    - name: client
+      secret:
+        secretName: jumpstarter-client
+    # the reports last as long as the run's pod; give this a volumeClaimTemplate to keep them
+    - name: results
+      emptyDir: {}

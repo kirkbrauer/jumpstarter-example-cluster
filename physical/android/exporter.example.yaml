@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# An Android phone or head unit on a bench, over USB, served by `jmp run` on the host it is plugged into.
+# Not run in the lab this repository comes from: the same driver serves the virtual devices there, over TCP.
+#
+#   jmp admin create exporter pixel -n jumpstarter-lab --label type=phone --label lab=bench --save --out exporter.yaml
+apiVersion: jumpstarter.dev/v1alpha1
+kind: ExporterConfig
+metadata:
+  namespace: jumpstarter-lab
+  name: pixel
+endpoint: grpc.jumpstarter.apps.example.com:443
+tls:
+  ca: <the controller's CA, as the command above writes it>
+  insecure: false
+token: <the exporter's token>
+export:
+  android:
+    type: jumpstarter_driver_adb.driver.AdbDevice
+    config:
+      serial: <the device's serial, from `adb devices`>
+      appium:
+        home: /opt/appium-home
+        env:
+          ANDROID_HOME: /opt/android-sdk

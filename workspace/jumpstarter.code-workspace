@@ -1,0 +1,11 @@
+{
+	"folders": [{ "name": "jumpstarter-tests", "path": "/projects/jumpstarter-tests" }],
+	"settings": {
+		"python.defaultInterpreterPath": "/opt/jumpstarter/venv/bin/python",
+		"jumpstarter.experimentalCliFeatures": true,
+		"robotcode.robot.outputDir": "results"
+	},
+	"extensions": {
+		"recommendations": ["ms-python.python", "d-biehl.robotcode", "redhat.vscode-yaml"]
+	}
+}

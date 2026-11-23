@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# One run of the connection suite: a paired phone and head unit disconnect, connect again and forget each other.
+#
+#   oc -n <namespace> create -f tekton/run-bluetooth-connection.yaml
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: bluetooth-connection-
+spec:
+  pipelineRef:
+    name: jumpstarter-robot-suite
+  params:
+    - name: image
+      value: registry.example.com/jumpstarter/che-workspace:latest
+    - name: suite
+      value: tests/bluetooth_connection.robot
+  timeouts:
+    pipeline: 30m
+  workspaces:
+    - name: client
+      secret:
+        secretName: jumpstarter-client
+    # the reports last as long as the run's pod; give this a volumeClaimTemplate to keep them
+    - name: results
+      emptyDir: {}

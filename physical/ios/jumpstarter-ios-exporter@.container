@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# One exporter per bench USB port, named by its Linux topology name:
+#   jumpstarter-ios-exporter@1-1.2.service serves whatever device is plugged into 1-1.2.
+# Per port: /etc/jumpstarter/ios/<port>/exporter.yaml (controller endpoint and token)
+# and an optional /etc/jumpstarter/ios/<port>/env (for example IOS_DEVICEHUB_UDID=...).
+[Unit]
+Description=Jumpstarter iOS exporter on USB port %i
+Requires=jumpstarter-usbmuxd.service
+After=jumpstarter-usbmuxd.service network-online.target
+Wants=network-online.target
+
+[Container]
+Image=localhost/jumpstarter-ios-exporter:devicehub
+ContainerName=jumpstarter-ios-exporter-%i
+Network=host
+# Unprivileged: the device is reached through usbmuxd's socket. The label is
+# disabled so it may connect to the socket of the privileged usbmuxd container.
+SecurityLabelDisable=true
+Volume=/run/jumpstarter-ios:/run/jumpstarter-ios
+Volume=/etc/jumpstarter/ios/%i:/etc/jumpstarter:ro
+Volume=/var/lib/jumpstarter-ios/devicehub/%i:/var/lib/devicehub
+Environment=IOS_USB_PORT=%i
+EnvironmentFile=/etc/jumpstarter/ios/%i/env
+
+[Service]
+ExecStartPre=/usr/bin/mkdir -p /var/lib/jumpstarter-ios/devicehub/%i
+ExecStartPre=/usr/bin/touch /etc/jumpstarter/ios/%i/env
+Restart=always
+RestartSec=10

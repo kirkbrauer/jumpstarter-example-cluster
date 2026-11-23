@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# One run of the music suite: a phone and a head unit are leased, joined and paired, and the head unit plays the phone's music.
+#
+#   oc -n <namespace> create -f tekton/run-bluetooth-media.yaml
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: bluetooth-media-
+spec:
+  pipelineRef:
+    name: jumpstarter-robot-suite
+  params:
+    - name: image
+      value: registry.example.com/jumpstarter/che-workspace:latest
+    - name: suite
+      value: tests/bluetooth_media.robot
+  timeouts:
+    pipeline: 30m
+  workspaces:
+    - name: client
+      secret:
+        secretName: jumpstarter-client
+    # the reports last as long as the run's pod; give this a volumeClaimTemplate to keep them
+    - name: results
+      emptyDir: {}

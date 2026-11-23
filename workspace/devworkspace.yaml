@@ -1,0 +1,100 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# A Jumpstarter test workspace on Eclipse Che: VS Code (che-code) as the editor and, as its tools container, the
+# image of ./Containerfile. `deploy.sh` applies it to a user's Che namespace, with the che-code editor definition
+# of the cluster's own Che as the DevWorkspaceTemplate `che-code` it refers to.
+apiVersion: workspace.devfile.io/v1alpha2
+kind: DevWorkspace
+metadata:
+  name: jumpstarter-tests
+  annotations:
+    che.eclipse.org/che-editor: che-incubator/che-code/latest
+spec:
+  started: true
+  routingClass: che
+  contributions:
+    - name: editor
+      kubernetes:
+        name: che-code
+  template:
+    attributes:
+      # the sample project is copied in when the workspace starts: nothing to keep between starts yet
+      controller.devfile.io/storage-type: ephemeral
+    components:
+      - name: tools
+        container:
+          image: "@WORKSPACE_IMAGE@"
+          memoryRequest: 512Mi
+          memoryLimit: 3Gi
+          cpuRequest: 100m
+          cpuLimit: "2"
+          mountSources: true
+          env:
+            # the routes of a lab's controller are names of the cluster's own ingress
+            - name: GRPC_DNS_RESOLVER
+              value: native
+            # For the Jumpstarter extension: the ports below and the address Che gives each (a browser cannot reach
+            # the container's loopback), and where the editor's panels, which frame Jumpstarter Web, are served from
+            - name: JUMPSTARTER_WEB_ENDPOINTS
+              value: "@WEB_ENDPOINTS@"
+            - name: JUMPSTARTER_WEB_FRAME_ORIGINS
+              value: "@FRAME_ORIGINS@"
+            # What Che's dashboard sets on a workspace it creates, and its editor expects: without the dashboard's
+            # address the editor's own extension adds a terminal variable with no value, and no terminal starts.
+            - name: CHE_DASHBOARD_URL
+              value: "@CHE_URL@"
+            - name: CHE_PLUGIN_REGISTRY_URL
+              value: "@CHE_URL@/plugin-registry/v3"
+            - name: OPENVSX_REGISTRY_URL
+              value: "https://open-vsx.org"
+            # Che's ports extension asks, of every port something starts to listen on, whether to open it or to
+            # forward it. Not of these: the three above are the extension's own, 3478 is a display's relay (reached
+            # from inside the workspace only), 3101 is RobotCode's language server.
+            - { name: PORT_PLUGIN_EXCLUDE_JMP_WEB_1, value: "7071" }
+            - { name: PORT_PLUGIN_EXCLUDE_JMP_WEB_2, value: "7072" }
+            - { name: PORT_PLUGIN_EXCLUDE_JMP_WEB_3, value: "7073" }
+            - { name: PORT_PLUGIN_EXCLUDE_HMI_RELAY, value: "3478" }
+            - { name: PORT_PLUGIN_EXCLUDE_ROBOTCODE, value: "3101" }
+          # Jumpstarter Web, one server for each lease whose screen or inspector is open: three leases at once.
+          # Each has a host name of its own (no path rewriting); the server asks for its own token.
+          endpoints:
+            - name: jmp-web-1
+              targetPort: 7071
+              exposure: public
+              protocol: https
+              attributes: { discoverable: false, urlRewriteSupported: false }
+            - name: jmp-web-2
+              targetPort: 7072
+              exposure: public
+              protocol: https
+              attributes: { discoverable: false, urlRewriteSupported: false }
+            - name: jmp-web-3
+              targetPort: 7073
+              exposure: public
+              protocol: https
+              attributes: { discoverable: false, urlRewriteSupported: false }
+    commands:
+      - id: sample-project
+        exec:
+          component: tools
+          # the sample project, once: what is in the workspace is the user's
+          commandLine: >-
+            [ -e "${PROJECTS_ROOT}/jumpstarter-tests" ] ||
+            cp -R /opt/jumpstarter/project "${PROJECTS_ROOT}/jumpstarter-tests"
+      - id: client-config
+        exec:
+          component: tools
+          # The Jumpstarter client configurations of the namespace's Secret, where `jmp` keeps them (it writes
+          # there itself: the current client, a refreshed token), and the first as the current client unless the
+          # user already chose one.
+          commandLine: >-
+            mkdir -p "${HOME}/.config/jumpstarter/clients" &&
+            for config in /etc/jumpstarter/clients/*.yaml; do
+            [ -e "$config" ] || continue;
+            install -m 600 "$config" "${HOME}/.config/jumpstarter/clients/";
+            [ -e "${HOME}/.config/jumpstarter/config.yaml" ] ||
+            jmp config client use "$(basename "$config" .yaml)"; done
+    events:
+      postStart:
+        - sample-project
+        - client-config

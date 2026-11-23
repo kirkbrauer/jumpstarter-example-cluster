@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# The tools container of a Jumpstarter test workspace on Eclipse Che: what a test engineer needs to write and run
+# Robot Framework and pytest suites against leased devices, and to see those devices beside the editor.
+#
+#   * Jumpstarter: the `jmp` and `j` commands, the client library, the driver clients of the lab's devices, the
+#     Robot Framework library (`jumpstarter-robot`) and the pytest helpers;
+#   * Jumpstarter Web and its plugins, which the VS Code extension starts for a lease to show a device's screen or
+#     the Appium Inspector in a panel;
+#   * the Jumpstarter VS Code extension and Claude Code, installed when the editor starts (`DEFAULT_EXTENSIONS`). The Python,
+#     RobotCode and YAML extensions come from the registry (the project's `.vscode/extensions.json`).
+#
+# The HMI driver's client has its own viewer of a device's WebRTC stream (the `restream` extra): the browser of a
+# workspace cannot reach the stream's relay, so the client joins it and the page is sent the pictures.
+#
+# Built from wheels (`wheels/`) and the extension (`extensions/`) that `build.sh` puts beside this file: the
+# packages are not on an index yet. Everything else comes from PyPI.
+FROM quay.io/devfile/base-developer-image:ubi9-latest
+
+USER 0
+
+RUN dnf -y install python3.12 python3.12-pip python3.12-devel && dnf clean all
+
+COPY wheels /opt/jumpstarter/wheels
+# The wheels are development versions, which pip passes over for a release on PyPI: each is pinned to the version
+# it has here, so that what is installed is what was built.
+RUN python3.12 -m venv /opt/jumpstarter/venv \
+    && /opt/jumpstarter/venv/bin/pip install --no-cache-dir --upgrade pip \
+    && for wheel in /opt/jumpstarter/wheels/*.whl; do \
+         name=$(basename "$wheel" | cut -d- -f1 | tr _ -); version=$(basename "$wheel" | cut -d- -f2); \
+         echo "$name==$version"; \
+       done > /opt/jumpstarter/constraints.txt \
+    && /opt/jumpstarter/venv/bin/pip install --no-cache-dir --find-links /opt/jumpstarter/wheels \
+        --constraint /opt/jumpstarter/constraints.txt \
+        jumpstarter jumpstarter-cli jumpstarter-cli-admin \
+        "jumpstarter-robot[mobile,ssh]" jumpstarter-testing jumpstarter-imagehash \
+        jumpstarter-driver-composite jumpstarter-driver-power jumpstarter-driver-network \
+        jumpstarter-driver-pyserial jumpstarter-driver-ssh jumpstarter-driver-opendal \
+        jumpstarter-driver-adb jumpstarter-driver-appium jumpstarter-driver-qemu \
+        "jumpstarter-driver-hmi[restream]" jumpstarter-driver-cuttlefish \
+        jumpstarter-driver-netsim jumpstarter-driver-bt-peer bumble \
+        jumpstarter-web jumpstarter-web-plugin-hmi jumpstarter-web-plugin-appium-inspector \
+        jumpstarter-web-plugin-power jumpstarter-web-plugin-serial jumpstarter-web-plugin-ssh \
+        robotframework pytest \
+    && rm -rf /opt/jumpstarter/wheels
+
+COPY extensions /opt/jumpstarter/extensions
+COPY project /opt/jumpstarter/project
+# what the editor opens: the sample project, with the settings and the recommended extensions of the workspace
+COPY jumpstarter.code-workspace /opt/jumpstarter/jumpstarter.code-workspace
+
+# OpenShift runs the container as an arbitrary user of group 0
+RUN chgrp -R 0 /opt/jumpstarter && chmod -R g=u /opt/jumpstarter
+
+# (claude-code.vsix is there unless the image was built with CLAUDE_CODE=0: the editor passes over a file it
+# does not find)
+ENV VIRTUAL_ENV=/opt/jumpstarter/venv \
+    PATH=/opt/jumpstarter/venv/bin:$PATH \
+    DEFAULT_EXTENSIONS="/opt/jumpstarter/extensions/vscode-jumpstarter.vsix;/opt/jumpstarter/extensions/claude-code.vsix" \
+    VSCODE_DEFAULT_WORKSPACE=/opt/jumpstarter/jumpstarter.code-workspace
+
+USER 10001

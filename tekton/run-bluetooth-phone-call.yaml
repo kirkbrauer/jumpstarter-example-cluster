@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# One run of the phone call suite: a phone and a head unit are leased, joined and paired, and calls are made.
+#
+#   oc -n <namespace> create -f tekton/run-bluetooth-phone-call.yaml
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: bluetooth-phone-call-
+spec:
+  pipelineRef:
+    name: jumpstarter-robot-suite
+  params:
+    - name: image
+      value: registry.example.com/jumpstarter/che-workspace:latest
+    - name: suite
+      value: tests/bluetooth_phone_call.robot
+  timeouts:
+    pipeline: 30m
+  workspaces:
+    - name: client
+      secret:
+        secretName: jumpstarter-client
+    # the reports last as long as the run's pod; give this a volumeClaimTemplate to keep them
+    - name: results
+      emptyDir: {}

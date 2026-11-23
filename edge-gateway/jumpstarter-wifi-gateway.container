@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# This host's test Wi-Fi network (NetworkManager connection jumpstarter-test-ap): addresses for the devices that
+# join it, and one port that is answered by whoever attaches to it through the exporter's lease. See README.md.
+[Unit]
+Description=Jumpstarter test Wi-Fi gateway (addresses and a relayed port on wlan0)
+
+[Container]
+ContainerName=jumpstarter-wifi-gateway
+# Any image with Python 3: the gateway is standard library only.
+Image=localhost/jumpstarter-ios-exporter:hmi
+Network=host
+AddCapability=NET_ADMIN NET_RAW NET_BIND_SERVICE
+User=0
+Volume=/etc/jumpstarter/wifi-gateway:/gateway:ro,z
+Exec=python3 -u /gateway/wifi_gateway.py --interface wlan0 --address 10.77.0.1 --port 8080
+
+[Service]
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

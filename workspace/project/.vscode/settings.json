@@ -1,0 +1,5 @@
+{
+  "python.defaultInterpreterPath": "/opt/jumpstarter/venv/bin/python",
+  "jumpstarter.experimentalCliFeatures": true,
+  "robotcode.robot.outputDir": "results"
+}

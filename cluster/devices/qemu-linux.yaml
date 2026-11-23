@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# A virtual Linux machine (QEMU), leased with `device=qemu-linux` or `type=linux`. Up to four at once.
+#
+# The class says how one is made (the provisioner, the image, the machine); the set says how many there may be,
+# what they are labelled, and which drivers a lease of one gets. A device exists while it is leased or kept
+# ready (minAvailableReplicas), and is made anew after each lease.
+#
+# Replace registry.example.com/jumpstarter/exporter with an exporter image that has these drivers.
+apiVersion: virtualtarget.jumpstarter.dev/v1alpha1
+kind: VirtualTargetClass
+metadata:
+  name: qemu-x86-64
+  namespace: jumpstarter-lab
+spec:
+  bindingMode: Immediate
+  images:
+    exporter:
+      image: registry.example.com/jumpstarter/exporter:latest
+      imagePullPolicy: Always
+    runtime:
+      image: quay.io/jumpstarter-dev/virtual/qemu-runtime:0.10.0-dev-246-gea8f4f12
+  parameters:
+    arch: x86_64
+    machineType: q35
+    resources:
+      cpu: 2
+      memory: 4Gi
+    storage:
+      fsOverhead: 10%
+      size: 10Gi
+  provisioner: qemu.jumpstarter.dev
+  reclaimPolicy: Delete
+  scheduling:
+    resources:
+      requests:
+        cpu: '1'
+        memory: 4Gi
+---
+apiVersion: virtualtarget.jumpstarter.dev/v1alpha1
+kind: ExporterSet
+metadata:
+  name: qemu-linux
+  namespace: jumpstarter-lab
+spec:
+  maxReplicas: 4
+  minAvailableReplicas: 0
+  minReplicas: 0
+  recycleStrategy: ExitAndReplace
+  scaleDownCooldown: 5m0s
+  selector:
+    matchLabels:
+      device: qemu-linux
+  template:
+    metadata:
+      labels:
+        device: qemu-linux
+        lab: virtual
+        type: linux
+    spec:
+      drivers:
+      - config:
+          arch: x86_64
+          disk_size: 10G
+          hmi: {}
+          mem: 4G
+          smp: 2
+        name: qemu
+        type: jumpstarter_driver_qemu.driver.Qemu
+  virtualTargetClassName: qemu-x86-64

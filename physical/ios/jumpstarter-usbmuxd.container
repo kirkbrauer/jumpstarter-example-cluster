@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# The one usbmux daemon on this host. It owns the USB devices and the exporter's
+# lockdown pairing records; every iOS exporter reaches it through its socket.
+[Unit]
+Description=usbmuxd for Jumpstarter iOS exporters
+
+[Container]
+Image=localhost/jumpstarter-ios-exporter:devicehub
+ContainerName=jumpstarter-usbmuxd
+Exec=sh -c 'rm -f /run/jumpstarter-ios/usbmuxd && exec usbmuxd --foreground --user root --socket /run/jumpstarter-ios/usbmuxd --pidfile NONE'
+# For idevicepair and friends inside this container.
+Environment=USBMUXD_SOCKET_ADDRESS=UNIX:/run/jumpstarter-ios/usbmuxd
+Network=none
+# Needs the USB bus, including device nodes created when a device is replugged.
+PodmanArgs=--privileged
+Volume=/run/jumpstarter-ios:/run/jumpstarter-ios
+Volume=/run/udev:/run/udev:ro
+Volume=/var/lib/jumpstarter-ios/lockdown:/var/lib/lockdown:Z
+
+[Service]
+ExecStartPre=/usr/bin/mkdir -p /run/jumpstarter-ios /var/lib/jumpstarter-ios/lockdown
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

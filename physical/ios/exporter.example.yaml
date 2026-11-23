@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# /etc/jumpstarter/ios/<usb port>/exporter.yaml on the host the device is plugged into. The endpoint, the CA and
+# the token are those of an exporter made on the controller:
+#
+#   jmp admin create exporter ipad -n jumpstarter-lab --label type=tablet --save --out exporter.yaml
+#
+# Keep the file to root: the token is the exporter's identity.
+apiVersion: jumpstarter.dev/v1alpha1
+kind: ExporterConfig
+metadata:
+  namespace: jumpstarter-lab
+  name: ipad
+endpoint: grpc.jumpstarter.apps.example.com:443
+tls:
+  ca: <the controller's CA, as the command above writes it>
+  insecure: false
+token: <the exporter's token>
+export:
+  ios:
+    type: jumpstarter_driver_iosdevice.driver.IosDevice
+    config:
+      udid: <the device's UDID>
+      usbmux_socket: /run/jumpstarter-ios/usbmuxd
+      hmi:
+        executable: /usr/local/bin/scrios
+      appium:
+        executable: /opt/appium/node_modules/.bin/appium
+        home: /opt/appium/home
+        wda_port: 8100
+        startup_timeout: 120
+  power:
+    type: jumpstarter_driver_power.driver.MockPower
+  # With an edge gateway beside the device (../../edge-gateway):
+  bluetooth:
+    type: jumpstarter_driver_network.driver.TcpNetwork
+    config:
+      host: 127.0.0.1
+      port: 7300
+  wifi:
+    type: jumpstarter_driver_network.driver.TcpNetwork
+    config:
+      host: 127.0.0.1
+      port: 7410
