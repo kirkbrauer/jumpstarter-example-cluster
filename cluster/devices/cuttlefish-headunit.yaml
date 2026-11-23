@@ -70,7 +70,7 @@ spec:
             - vm:
                 cpus: 4
                 memory_mb: 8192
-          name: cuttlefish
+        name: cuttlefish
         type: jumpstarter_driver_cuttlefish.driver.Cuttlefish
       - config:
           address: 127.0.0.1:6520
