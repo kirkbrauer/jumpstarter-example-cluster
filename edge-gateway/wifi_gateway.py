@@ -36,6 +36,26 @@ def options(data: bytes) -> dict[int, bytes]:
     return found
 
 
+def checksum(data: bytes) -> int:
+    total = sum(struct.unpack(f"!{len(data) // 2}H", data + b"\0" * (len(data) % 2)))
+    while total >> 16:
+        total = (total & 0xFFFF) + (total >> 16)
+    return ~total & 0xFFFF
+
+
+def send_to_hardware(interface: str, hardware: bytes, source: ipaddress.IPv4Address,
+                     address: ipaddress.IPv4Address, reply: bytes) -> None:
+    """A reply for a device that has no address yet, sent to its hardware address and to the address it is
+    being given (RFC 2131, 4.1). The host cannot do that through a UDP socket: it does not know the device's
+    address belongs to that hardware address until the device has taken it."""
+    udp = struct.pack("!HHHH", 67, 68, 8 + len(reply), 0) + reply
+    header = struct.pack("!BBHHHBBH4s4s", 0x45, 0, 20 + len(udp), 0, 0, 64, socket.IPPROTO_UDP, 0,
+                         source.packed, address.packed)
+    header = header[:10] + struct.pack("!H", checksum(header)) + header[12:]
+    with socket.socket(socket.AF_PACKET, socket.SOCK_DGRAM, socket.htons(0x0800)) as frame:
+        frame.sendto(header + udp, (interface, 0x0800, 0, 0, hardware))
+
+
 def serve_addresses(interface: str, server: ipaddress.IPv4Address, first: int = 10, last: int = 50) -> None:
     """A DHCP server for one /24: an address per hardware address, kept for as long as this runs."""
     network = ipaddress.ip_network(f"{server}/24", strict=False)
@@ -50,11 +70,15 @@ def serve_addresses(interface: str, server: ipaddress.IPv4Address, first: int = 
         packet, _ = sock.recvfrom(2048)
         if len(packet) < 240 or packet[0] != 1 or packet[236:240] != b"\x63\x82\x53\x63":
             continue
-        xid, hardware = packet[4:8], packet[28:34]
+        xid, flags, hardware = packet[4:8], packet[10:12], packet[28:34]
         asked = options(packet[240:])
         kind = asked.get(53, b"\0")[0]
         if kind not in (DISCOVER, REQUEST):
             continue
+        device = hardware.hex(":")
+        wants_broadcast = bool(flags[0] & 0x80)
+        say({DISCOVER: "discover", REQUEST: "request"}[kind], device=device, flags=flags.hex(),
+            has=str(ipaddress.IPv4Address(packet[12:16])))
         if hardware not in given:
             used = set(given.values())
             free = [network.network_address + n for n in range(first, last + 1) if network.network_address + n not in used]
@@ -66,7 +90,8 @@ def serve_addresses(interface: str, server: ipaddress.IPv4Address, first: int = 
         wanted = asked.get(50) or packet[12:16]
         if kind == REQUEST and wanted != b"\0\0\0\0" and wanted != address.packed:
             answer = NAK
-        reply = struct.pack("!BBBB4sHH4s4s4s4s", 2, 1, 6, 0, xid, 0, 0x8000, b"\0" * 4,
+        # (the reply says what the device said of how it wants to be answered)
+        reply = struct.pack("!BBBB4sH2s4s4s4s4s", 2, 1, 6, 0, xid, 0, flags, b"\0" * 4,
                             b"\0" * 4 if answer == NAK else address.packed, server.packed, b"\0" * 4)
         reply += hardware + b"\0" * 10 + b"\0" * 192 + b"\x63\x82\x53\x63"
         reply += bytes([53, 1, answer, 54, 4]) + server.packed
@@ -74,8 +99,21 @@ def serve_addresses(interface: str, server: ipaddress.IPv4Address, first: int = 
             reply += bytes([51, 4]) + struct.pack("!I", LEASE_SECONDS) + bytes([1, 4]) + network.netmask.packed
             reply += bytes([3, 4]) + server.packed
         reply += b"\xff"
-        sock.sendto(reply, ("255.255.255.255", 68))
-        say({OFFER: "offered", ACK: "given", NAK: "refused"}[answer], address=str(address), device=hardware.hex(":")[-5:])
+        # To everyone when the device asks for that, or is refused. Otherwise to the device alone: one that has
+        # the address already is reached at it; one that does not, at its hardware address.
+        sent = "broadcast"
+        if answer != NAK and not wants_broadcast:
+            try:
+                if packet[12:16] == address.packed:
+                    sock.sendto(reply, (str(address), 68))
+                else:
+                    send_to_hardware(interface, hardware, server, address, reply)
+                sent = "unicast"
+            except OSError as error:
+                say("unicast-failed", device=device, error=str(error))
+        if sent == "broadcast":
+            sock.sendto(reply, ("255.255.255.255", 68))
+        say({OFFER: "offered", ACK: "given", NAK: "refused"}[answer], address=str(address), device=device, sent=sent)
 
 
 NOBODY = (
