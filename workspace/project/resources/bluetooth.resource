@@ -2,8 +2,9 @@
 Documentation     Bluetooth between the phone and the head unit, one keyword for each thing a person does or checks.
 ...
 ...               The two are virtual devices with a radio each. Their lease joins the radios (its `bluetooth`
-...               forward): nothing here carries the traffic. `Connect The Radios Of The Phone And The Head Unit`
-...               only tells each radio who its device is, and waits until the two are joined. What a person
+...               forward): nothing here carries the traffic. Each radio asks its own device who it
+...               is, so each device lists the other under its real name: `Connect The Radios Of The Phone And
+...               The Head Unit` only waits until the two are joined and carry each other's names. What a person
 ...               would press is pressed with Appium (AppiumLibrary); what a device then believes is read with ADB.
 Resource          devices.resource
 # The Bluetooth radio of each device (the exporter's `bt_radio` driver): one half of the bridge between the two.
@@ -15,6 +16,7 @@ Library           jumpstarter_robot.Driver    bt_radio    client=jumpstarter_dri
 
 *** Variables ***
 # What each device calls itself on the air. `Connect The Radios Of The Phone And The Head Unit` reads them from the devices.
+# Nothing here tells a radio these names: its driver reads them from its device, and follows a rename.
 ${PHONE NAME}                       ${EMPTY}
 ${HEAD UNIT NAME}                   ${EMPTY}
 
@@ -27,6 +29,7 @@ ${HEAD UNIT NAME}                   ${EMPTY}
 
 # The phone's Bluetooth settings (com.android.settings)
 ${PHONE SETTINGS ROW}               id=android:id/title
+${PHONE PAIR NEW DEVICE}            Pair new device    # the label of that row, in the phone's language
 ${PHONE PAIRING DIALOG}             id=com.android.settings:id/pairing_confirmation_hint
 ${PHONE PAIRING CODE}               id=com.android.settings:id/pairing_subhead
 ${PHONE PAIR BUTTON}                id=com.android.settings:id/positive_button_container
@@ -60,18 +63,14 @@ Forget Paired Devices On The Phone And The Head Unit
     END
 
 Connect The Radios Of The Phone And The Head Unit
-    [Documentation]    The lease has joined the radios already. Each radio's half of the bridge is told who the
-    ...    device beside it is, as the device itself reports it: its name and class are what the other device
-    ...    will list, and its address is where the half calls it when the other device starts.
+    [Documentation]    The lease has joined the radios already, and each radio's half of the bridge has asked the
+    ...    device beside it who it is. This waits until the two halves are joined and each is in its radio under
+    ...    the other device's real name: that name is what the other device lists.
     ${phone}=    Get Bluetooth Identity    phone
     ${head unit}=    Get Bluetooth Identity    headunit
-    Phone Radio Set Identity    name=${phone}[name]    address=${phone}[address]
-    ...    class_of_device=${phone}[class_of_device]
-    Head Unit Radio Set Identity    name=${head unit}[name]    address=${head unit}[address]
-    ...    class_of_device=${head unit}[class_of_device]
     Phone Radio Wait Until Joined
     Head Unit Radio Wait Until Joined
-    Wait Until Keyword Succeeds    30s    1s    Radios Should Carry Each Other's Names    ${phone}    ${head unit}
+    Wait Until Keyword Succeeds    60s    2s    Radios Should Carry Each Other's Names    ${phone}    ${head unit}
     Set Suite Variable    ${PHONE NAME}    ${phone}[name]
     Set Suite Variable    ${HEAD UNIT NAME}    ${head unit}[name]
 
@@ -82,19 +81,26 @@ Radios Should Carry Each Other's Names
     ${in the head unit's radio}=    Head Unit Radio Status
     Should Be True    ${in the phone's radio}[on_air]    The phone's radio is not on the air: ${in the phone's radio}
     Should Be True    ${in the head unit's radio}[on_air]    The head unit's radio is not on the air: ${in the head unit's radio}
-    Should Be Equal    ${in the phone's radio}[persona]    ${head unit}[name]
-    Should Be Equal    ${in the head unit's radio}[persona]    ${phone}[name]
+    ${beside the phone}=    Phone Radio Peer
+    ${beside the head unit}=    Head Unit Radio Peer
+    Should Be Equal    ${beside the phone.name}    ${head unit}[name]
+    Should Be Equal    ${beside the head unit.name}    ${phone}[name]
 
 The Radios Should Have Carried The Pairing
-    [Documentation]    Each half of the bridge has a link to its own device, encrypted, and has passed on what
-    ...    that device said: the two talked through the lease's forward, and through nothing else.
-    ${in the phone's radio}=    Phone Radio Status
-    ${in the head unit's radio}=    Head Unit Radio Status
+    [Documentation]    Each half of the bridge has a secure link to its own device, and has passed on what that
+    ...    device said: the two talked through the lease's forward, and through nothing else.
+    ${in the phone's radio}=    Phone Radio Wait Until Paired    timeout=${60}
+    ${in the head unit's radio}=    Head Unit Radio Wait Until Paired    timeout=${60}
     FOR    ${radio}    IN    ${in the phone's radio}    ${in the head unit's radio}
         Log    ${radio}
-        Should Be True    ${radio}[linked] and ${radio}[encrypted]    A radio has no encrypted link to its device: ${radio}
+        Should Be True    ${radio}[paired] and ${radio}[encrypted]    A radio has no secure link to its device: ${radio}
         Should Be True    ${radio}[heard] > 0 and ${radio}[sent] > 0    A radio has not carried traffic both ways: ${radio}
     END
+
+The Radios Should Be Idle
+    [Documentation]    Nothing is in flight: no half is calling its device, and no pairing is being made.
+    Phone Radio Wait Until Idle
+    Head Unit Radio Wait Until Idle
 
 Disconnect The Radios Of The Phone And The Head Unit
     [Documentation]    Takes both radios off each other's air, as two devices out of reach: both are hung up on.
@@ -108,6 +114,7 @@ Pair The Phone With The Head Unit
     Forget Paired Devices On The Phone And The Head Unit
     Connect The Radios Of The Phone And The Head Unit
     Open Bluetooth Settings On The Phone
+    Look For New Devices On The Phone
     Open Bluetooth Settings On The Head Unit
     Look For New Devices On The Head Unit
     Choose The Phone On The Head Unit
@@ -116,15 +123,34 @@ Pair The Phone With The Head Unit
     Allow The Head Unit To Read Messages On The Phone
     Head Unit Should Be Connected To The Phone
 
-# ---- Pairing: started from the head unit's settings, confirmed on both -----------------------------------------------
+# ---- Pairing: started from either device's settings, confirmed on both -------------------------------------------------
+#
+# As with two devices in the hand, the one that is asked shows the question on its screen only while its "Pair new
+# device" page is open; otherwise it posts a "Pairing request" notification. So both are put on that page first.
 
 Open Bluetooth Settings On The Phone
     [Documentation]    A phone with its Bluetooth settings open is visible to devices nearby, and asks about a
     ...    pairing request on the screen instead of in a notification.
     On The Phone
+    # (a phone that has just started sits on its lock screen, where nothing can be pressed)
+    ADB Shell    input keyevent KEYCODE_WAKEUP
+    ADB Shell    wm dismiss-keyguard
     ADB Shell    am force-stop com.android.settings
     ADB Shell    am start -a android.settings.BLUETOOTH_SETTINGS
     Wait Until On Screen    ${PHONE SETTINGS ROW}
+
+Look For New Devices On The Phone
+    [Documentation]    Presses the "Pair new device" row: the phone starts looking, lists what it finds, and
+    ...    asks about a pairing on its screen.
+    On The Phone
+    ${pair new device}=    Row Labelled    ${PHONE PAIR NEW DEVICE}
+    Press    ${pair new device}
+
+Choose The Head Unit On The Phone
+    [Documentation]    Presses the head unit's row in the phone's list of available devices.
+    On The Phone
+    ${the head unit}=    Row Labelled    ${HEAD UNIT NAME}
+    Press    ${the head unit}    timeout=60s
 
 Open Bluetooth Settings On The Head Unit
     On The Head Unit
