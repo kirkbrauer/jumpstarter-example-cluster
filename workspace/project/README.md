@@ -139,24 +139,39 @@ The same suite runs unattended as a Tekton pipeline: see `tekton` in this reposi
 
 The two `ipad_` suites test a device on a bench against a head unit that exists only in the cluster. Beside the
 iPad, on its exporter's host, is an **edge gateway**: a real Bluetooth controller and a test Wi-Fi network, each
-offered as a port through the iPad's lease (`edge-gateway` in this repository has them, and
-how to set one up). The suites join those ports to the head unit:
+offered as a port by the iPad's exporter (`edge-gateway` in this repository has them, and how to set one up).
+The two devices are one lease, from the lease template `ipad-and-head-unit`, and the lease joins those ports
+to the head unit with two forwards (`cluster/templates/ipad-and-head-unit.yaml`): nothing in a suite carries
+the traffic.
 
+```yaml
+forwards:
+  - name: bluetooth   # the real controller beside the iPad and the head unit's radio: two halves of a bridge
+    endpoints:
+      - { member: ipad, port: bluetooth }
+      - { member: headunit, port: bluetooth }
+  - name: web         # the test Wi-Fi's one port, answered by port 8000 inside the head unit
+    endpoints:
+      - { member: headunit, port: web }
+      - { member: ipad, port: wifi-service }
 ```
-resources/ipad.resource      the iPad: its lease, what is pressed on it (Appium, XCUITest), and the two joins
-libraries/BluetoothBridge.py a bridge between two radios that the suite runs itself: one of its radios is real
-libraries/PortRelay.py       a port of the gateway's Wi-Fi network, answered by a port inside the head unit
-```
+
+`resources/ipad.resource` has the lease, what is pressed on the iPad (Appium, XCUITest), and the waits for the
+forwards. To see how they are doing: `jmp shell -t ipad-and-head-unit`, then `j-forward status`,
+`j ipad bluetooth status` and `j ipad wifi status` (`joined` counts the connections from the Wi-Fi).
 
 They need what the other suites do not:
 
 * the iPad's driver in the environment that runs them (`jumpstarter-driver-iosdevice`; the workspace image does
   not have it), and WebDriverAgent running on the iPad;
-* the iPad's name and Bluetooth address, given with `--variable` (see the top of each suite);
+* the iPad's name and Bluetooth address in its exporter's configuration (`physical/ios/exporter.example.yaml`):
+  a suite is not told them;
 * for Wi-Fi, an iPad that already knows the test network: join it once by hand. A suite does not type a
   network's password. While it is on that network the iPad has no internet.
 
-Over Wi-Fi the iPad reaches one port of the head unit, relayed; the two are not on one network.
+Over Wi-Fi the iPad reaches one port of the head unit, through the lease's forward; the two are not on one
+network. A head unit pauses music it did not ask for, so the audio the iPad starts is played from the head unit's
+own play button.
 
 These two suites still join the radios themselves, as the Bluetooth suites did before a lease could: the bridge
 and the relay run where the suite runs. They have not been moved to a lease with members (the lease template

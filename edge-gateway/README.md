@@ -1,12 +1,12 @@
 # Edge gateways: a physical device and a virtual one
 
 A phone or tablet on a bench has real radios; a virtual head unit has simulated ones. An **edge gateway** is a
-radio on the exporter host beside the physical device, offered as a port through that exporter's lease. Joined
-to a virtual device, it puts the virtual device on real air:
+radio on the exporter host beside the physical device, offered as a port by that exporter. A forward of a lease
+joins it to a port of a virtual device's exporter, and the virtual device is on real air:
 
 ```text
- physical device ))) real radio ── gateway ── exporter ══ lease ══ test ══ lease ══ exporter ── virtual device
-                     └────────── the host beside the device ─────────┘
+ physical device ))) real radio ── gateway ── exporter ══════ forward ══════ exporter ── virtual device
+                     └────── the host beside the device ──────┘
 ```
 
 Two gateways are here, both one file of standard-library Python, run as Podman quadlets:
@@ -16,9 +16,10 @@ Two gateways are here, both one file of standard-library Python, run as Podman q
 | `hci_gateway.py` | `127.0.0.1:7300`: the host's Bluetooth controller, as HCI packets in H4 framing | A Bluetooth host on the other end is on the air through this controller |
 | `wifi_gateway.py` | `10.77.0.1:8080` on a test Wi-Fi network, answered by whoever attaches at `127.0.0.1:7410` | One TCP port: a device on the Wi-Fi that connects to it is talking to the far end |
 
-What joins a gateway's port to a virtual device is, for now, the test itself (`libraries/BluetoothBridge.py` and
-`libraries/PortRelay.py` in the sample project). They are stand-ins for the inter-exporter forwards of
-JEP-0015, where the test is no longer in the path.
+What joins a gateway's port to a virtual device is a forward of the lease that holds both (JEP-0016): the
+exporters carry the traffic, and the test is not in the path. The exporter beside the gateway has a radio driver
+for each (`jumpstarter-driver-radio`), which declares the port; the lease template names the forwards
+(`cluster/templates/ipad-and-head-unit.yaml`).
 
 The Wi-Fi gateway joins at the level of a connection: the physical device reaches one port of the virtual one.
 It does not put the two on one network segment.
@@ -35,13 +36,18 @@ The gateway takes the controller for itself, so the host's own Bluetooth service
 ```
 
 Give each gateway an address of its own (`--address` in the quadlet): the devices that pair know it by that.
-Then offer the port from the exporter beside it:
+Then offer the controller from the exporter beside it, as one half of a Bluetooth bridge (port `bluetooth`). The
+half is on the air under the name of the device at the other end of the forward; `name`, `address` and
+`class_of_device` are the physical device's own, which the far half carries in its radio:
 
 ```yaml
 export:
   bluetooth:
-    type: jumpstarter_driver_network.driver.TcpNetwork
+    type: jumpstarter_driver_radio.bluetooth.ControllerBluetooth
     config:
+      name: Bench iPad
+      address: "AA:BB:CC:DD:EE:FF"   # the device's Bluetooth address (Settings, General, About)
+      class_of_device: 0x5A020C
       host: 127.0.0.1
       port: 7300
 ```
@@ -66,14 +72,19 @@ internet, and a firewall zone that allows address assignment and the one port.
 # systemctl daemon-reload && systemctl start jumpstarter-wifi-gateway
 ```
 
+Then offer the network's port from the exporter beside it (port `wifi-service`, `requires`): a connection a
+device on the Wi-Fi makes to the gateway's port goes to the `provides` port that a forward joins it to.
+
 ```yaml
 export:
   wifi:
-    type: jumpstarter_driver_network.driver.TcpNetwork
+    type: jumpstarter_driver_radio.gateway.GatewayWifi
     config:
-      host: 127.0.0.1
-      port: 7410
+      attach: 127.0.0.1:7410
 ```
+
+The gateway gives addresses itself. A device that asks for one without the broadcast flag (an iPad does) is
+answered at its hardware address; the gateway's log has each request and how it was answered.
 
 Join the physical device to the network once, by hand: `nmcli -s -g 802-11-wireless-security.psk con show
 jumpstarter-test-ap` prints the passphrase. The device then remembers the network, and a suite selects it from
