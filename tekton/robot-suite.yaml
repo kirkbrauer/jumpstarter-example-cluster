@@ -25,7 +25,7 @@ spec:
       description: The suite to run, relative to the project.
       default: tests
     - name: arguments
-      description: More arguments for `robot`, for example `--variable "PHONE SELECTOR:type=phone"`.
+      description: More arguments for `robot`, for example `--variable "LEASE TEMPLATE:my-phone-and-head-unit"`.
       type: array
       default: []
   workspaces:

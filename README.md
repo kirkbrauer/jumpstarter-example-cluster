@@ -126,8 +126,12 @@ All of it comes from one lab: a single-node OKD cluster, a Raspberry Pi 4 beside
 
 Two things the suites depend on that a new lab will meet:
 
-* the Bluetooth and Wi-Fi joins are made by the test itself (`libraries/BluetoothBridge.py`,
-  `libraries/PortRelay.py`). They stand in for Jumpstarter's planned inter-exporter forwards (JEP-0015);
+* the phone and the head unit of the Bluetooth suites are one lease, from the lease template
+  `phone-and-head-unit`, and the lease joins their Bluetooth radios (its forward `bluetooth`): that needs a
+  Jumpstarter with leases of several exporters and forwards between them (JEP-0015, JEP-0016), and an exporter
+  image with `jumpstarter-driver-radio`. Only the pairing suite has been run this way;
+* for the iPad, the Bluetooth and Wi-Fi joins are still made by the test itself (`libraries/BluetoothBridge.py`,
+  `libraries/PortRelay.py`);
 * the head unit and phone are stock AOSP images, without Google services: there is no Android Auto projection.
 
 ## Licence

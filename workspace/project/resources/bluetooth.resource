@@ -1,11 +1,16 @@
 *** Settings ***
 Documentation     Bluetooth between the phone and the head unit, one keyword for each thing a person does or checks.
 ...
-...               The two are virtual devices with a radio each, so `Connect The Radios Of The Phone And The Head Unit`
-...               first joins the radios with a bridge (`libraries/BluetoothBridge.py`). What a person would press
-...               is pressed with Appium (AppiumLibrary); what a device then believes is read with ADB.
+...               The two are virtual devices with a radio each. Their lease joins the radios (its `bluetooth`
+...               forward): nothing here carries the traffic. `Connect The Radios Of The Phone And The Head Unit`
+...               only tells each radio who its device is, and waits until the two are joined. What a person
+...               would press is pressed with Appium (AppiumLibrary); what a device then believes is read with ADB.
 Resource          devices.resource
-Library           ../libraries/BluetoothBridge.py
+# The Bluetooth radio of each device (the exporter's `bt_radio` driver): one half of the bridge between the two.
+Library           jumpstarter_robot.Driver    bt_radio    client=jumpstarter_driver_radio.client.BluetoothRadioClient
+...               prefix=Phone Radio    session=phone    AS    phone.radio
+Library           jumpstarter_robot.Driver    bt_radio    client=jumpstarter_driver_radio.client.BluetoothRadioClient
+...               prefix=Head Unit Radio    session=headunit    AS    headunit.radio
 
 
 *** Variables ***
@@ -55,11 +60,47 @@ Forget Paired Devices On The Phone And The Head Unit
     END
 
 Connect The Radios Of The Phone And The Head Unit
+    [Documentation]    The lease has joined the radios already. Each radio's half of the bridge is told who the
+    ...    device beside it is, as the device itself reports it: its name and class are what the other device
+    ...    will list, and its address is where the half calls it when the other device starts.
     ${phone}=    Get Bluetooth Identity    phone
     ${head unit}=    Get Bluetooth Identity    headunit
-    Bridge Bluetooth    ${phone}    ${head unit}
+    Phone Radio Set Identity    name=${phone}[name]    address=${phone}[address]
+    ...    class_of_device=${phone}[class_of_device]
+    Head Unit Radio Set Identity    name=${head unit}[name]    address=${head unit}[address]
+    ...    class_of_device=${head unit}[class_of_device]
+    Phone Radio Wait Until Joined
+    Head Unit Radio Wait Until Joined
+    Wait Until Keyword Succeeds    30s    1s    Radios Should Carry Each Other's Names    ${phone}    ${head unit}
     Set Suite Variable    ${PHONE NAME}    ${phone}[name]
     Set Suite Variable    ${HEAD UNIT NAME}    ${head unit}[name]
+
+Radios Should Carry Each Other's Names
+    [Documentation]    In the phone's radio there is now a device with the head unit's name, and the other way round.
+    [Arguments]    ${phone}    ${head unit}
+    ${in the phone's radio}=    Phone Radio Status
+    ${in the head unit's radio}=    Head Unit Radio Status
+    Should Be True    ${in the phone's radio}[on_air]    The phone's radio is not on the air: ${in the phone's radio}
+    Should Be True    ${in the head unit's radio}[on_air]    The head unit's radio is not on the air: ${in the head unit's radio}
+    Should Be Equal    ${in the phone's radio}[persona]    ${head unit}[name]
+    Should Be Equal    ${in the head unit's radio}[persona]    ${phone}[name]
+
+The Radios Should Have Carried The Pairing
+    [Documentation]    Each half of the bridge has a link to its own device, encrypted, and has passed on what
+    ...    that device said: the two talked through the lease's forward, and through nothing else.
+    ${in the phone's radio}=    Phone Radio Status
+    ${in the head unit's radio}=    Head Unit Radio Status
+    FOR    ${radio}    IN    ${in the phone's radio}    ${in the head unit's radio}
+        Log    ${radio}
+        Should Be True    ${radio}[linked] and ${radio}[encrypted]    A radio has no encrypted link to its device: ${radio}
+        Should Be True    ${radio}[heard] > 0 and ${radio}[sent] > 0    A radio has not carried traffic both ways: ${radio}
+    END
+
+Disconnect The Radios Of The Phone And The Head Unit
+    [Documentation]    Takes both radios off each other's air, as two devices out of reach: both are hung up on.
+    ...    Their bonds stay. `Connect The Radios Of The Phone And The Head Unit` brings them back.
+    Phone Radio Stop
+    Head Unit Radio Stop
 
 Pair The Phone With The Head Unit
     [Documentation]    The whole of pairing, for suites that are about what paired devices then do. Its steps, one

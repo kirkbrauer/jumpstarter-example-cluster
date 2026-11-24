@@ -1,11 +1,12 @@
 *** Settings ***
-Documentation     The two devices of these suites: an Android phone and a car's head unit, each leased through
-...               Jumpstarter in a session of its own.
+Documentation     The two devices of these suites: an Android phone and a car's head unit, leased together through
+...               Jumpstarter from one lease template. The lease holds both or neither, and joins their radios.
 ...
-...               `On The Phone` and `On The Head Unit` choose where the ADB and Appium keywords that follow go.
+...               Each role of the lease is a session: `phone` and `headunit`. `On The Phone` and
+...               `On The Head Unit` choose where the ADB and Appium keywords that follow go.
 Library           AppiumLibrary
-Library           jumpstarter_robot.Jumpstarter    selector=${PHONE SELECTOR}    session=phone
-Library           jumpstarter_robot.Session    headunit    selector=${HEAD UNIT SELECTOR}    AS    session.headunit
+Library           jumpstarter_robot.Jumpstarter    auto_import=False
+Library           jumpstarter_robot.Lease    ${LEASE TEMPLATE}    duration=${LEASE DURATION}    AS    lease.devices
 # The power driver of each device, under the device's own name: `Phone Power On`, `Head Unit Power On`.
 Library           jumpstarter_robot.Driver    cuttlefish.power    client=jumpstarter_driver_cuttlefish.client.CvdPowerClient
 ...               prefix=Phone Power    session=phone    AS    phone.power
@@ -14,27 +15,35 @@ Library           jumpstarter_robot.Driver    cuttlefish.power    client=jumpsta
 
 
 *** Variables ***
-# Which exporters to lease. A lease you already hold for the same selector is used as it is, and kept.
-${PHONE SELECTOR}        device=cf-phone
-${HEAD UNIT SELECTOR}    device=cf-headunit
+# The lease template the two devices come from (`jmp get lease-templates`): it names the roles `phone` and
+# `headunit` and the forwards between their radios. A lease you already hold from it is used as it is, and kept.
+${LEASE TEMPLATE}        phone-and-head-unit
 ${LEASE DURATION}        30 minutes
+# How long to keep asking for a lease that the lab cannot satisfy yet.
+${LEASE PATIENCE}        5 minutes
+# The forward of the lease that joins the two Bluetooth radios.
+${BLUETOOTH FORWARD}     bluetooth
 
 
 *** Keywords ***
 Lease The Phone And The Head Unit
-    [Documentation]    Lease both devices, power them on, and open ADB and Appium on each.
-    Acquire Lease    session=phone    duration=${LEASE DURATION}
-    Acquire Lease    session=headunit    duration=${LEASE DURATION}
+    [Documentation]    Lease both devices in one lease, power them on, and open ADB and Appium on each. The lease
+    ...    joins their Bluetooth radios itself: once its forward is up, the two are on one air.
+    # (The devices are made anew after each lease. Just after one was given back there may be none to lease
+    # for a moment, and the lab then says the lease cannot be satisfied: ask again until it can.)
+    Wait Until Keyword Succeeds    ${LEASE PATIENCE}    15s    Acquire Lease
+    Role Should Be Bound    phone
+    Role Should Be Bound    headunit
     Phone Power On
     Head Unit Power On
+    Wait Until Forward Is Listening    ${BLUETOOTH FORWARD}    timeout=2 min
     Open ADB And Appium    phone
     Open ADB And Appium    headunit
 
 Release The Phone And The Head Unit
     Run Keyword And Ignore Error    Close All Applications
     Run Keyword And Ignore Error    Close All ADB Devices
-    Release Lease    session=headunit
-    Release Lease    session=phone
+    Release Lease
 
 On The Phone
     Use Device Named    phone

@@ -9,7 +9,7 @@ Documentation     A phone and a car that already know each other: disconnecting,
 Resource          ../resources/calls.resource
 Suite Setup       Run Keywords    Lease The Phone And The Head Unit
 ...               AND    Pair The Phone With The Head Unit
-Suite Teardown    Run Keywords    Stop Bluetooth Bridge    AND    Release The Phone And The Head Unit
+Suite Teardown    Release The Phone And The Head Unit
 Test Setup        Phone And Head Unit Should Be Connected
 
 

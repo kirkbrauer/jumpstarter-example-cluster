@@ -29,4 +29,4 @@ $ tkn -n my-tests pipelinerun logs --last -f
   example run uses an `emptyDir`, which lasts as long as the run's pod; give it a `volumeClaimTemplate` to keep them.
   The pipeline's `summary` result is Robot Framework's own last line (`1 test, 1 passed, 0 failed`).
 * **Other suites**: `suite` is a path in the project (`tests` runs them all), and `arguments` are passed to `robot`,
-  for example `["--variable", "PHONE SELECTOR:type=phone"]`.
+  for example `["--variable", "LEASE TEMPLATE:my-phone-and-head-unit"]`.

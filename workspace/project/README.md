@@ -6,15 +6,16 @@ A starting point for Robot Framework suites that run against leased devices.
   commands each has. A driver with a screen or an inspector has **Open View**: it opens beside the editor.
 * **`tests/`**: the suites. Run one from the Testing view (RobotCode) or with
   `robot --outputdir results tests/bluetooth_pairing.robot`. A suite leases the devices it needs, or uses a lease you
-  already hold for the same selector, and powers them on.
+  already hold for the same selector or from the same lease template, and powers them on.
 * **Agents**: the editor's chat has Jumpstarter's MCP tools and skills from the Jumpstarter extension. **Claude Code**
   (the spark in the activity bar; sign in first) reads this project's own files instead: `.mcp.json` names the same
   server (`jmp mcp serve`) and `.claude/skills` has the same skills.
 * **Terminal**: `jmp get exporters`, `jmp shell --selector type=phone`, and `j` inside a lease, as on any machine.
 
 To watch a suite run, lease its devices first and open their screens: `./lease-devices.sh` leases the phone and
-the head unit of the Bluetooth suites (`--release` gives them back). A suite uses the leases you hold and leaves
-them with you, so the screens you opened from the Jumpstarter view stay open from one run to the next.
+the head unit of the Bluetooth suites, together, in one lease (`--release` gives it back). A suite uses the lease
+you hold and leaves it with you, so the screens you opened from the Jumpstarter view stay open from one run to the
+next.
 
 Your Jumpstarter client configuration is mounted from the Secret of your Che namespace
 (`~/.config/jumpstarter/clients`).
@@ -25,7 +26,7 @@ Your Jumpstarter client configuration is mounted from the Secret of your Che nam
 | --- | --- |
 | `tests/phone.robot` | One leased phone: its drivers, and the keywords they give. |
 | `tests/two_devices.robot` | Two devices in one suite, each in a session of its own. |
-| `tests/bluetooth_pairing.robot` | A phone pairs with a car's head unit over Bluetooth: Jumpstarter leases both and joins their radios, Appium taps through the pairing on each, ADB checks what each then believes. |
+| `tests/bluetooth_pairing.robot` | A phone pairs with a car's head unit over Bluetooth: one lease holds both devices and joins their radios, Appium taps through the pairing on each, ADB checks what each then believes. |
 | `tests/bluetooth_phone_call.robot` | A call with the phone paired to the car: the call the phone makes is a call on the head unit, and either can end it for both. |
 | `tests/bluetooth_media.robot` | Music from the phone through the car: the head unit shows the track the phone has, and its buttons play, pause and skip on the phone. |
 | `tests/bluetooth_connection.robot` | A phone and a car that know each other: either disconnects and connects again, the phone comes back by itself when the car's Bluetooth does, and the phone can forget the car. |
@@ -49,34 +50,78 @@ resources/contacts.resource        the same for contacts
 tests/bluetooth_messages.robot     the phone's text messages on the head unit
 resources/messages.resource        the same for text messages
 apps/test-player                   the phone's player for the music suite: its source, and the APK the suite installs
-resources/devices.resource         the two devices: leasing, power, ADB and Appium on each
-libraries/BluetoothBridge.py       the bridge between the two radios
+resources/devices.resource         the two devices: their lease, power, ADB and Appium on each
 ```
 
 The phone and the head unit are virtual (Cuttlefish), and each has a Bluetooth radio of its own: left alone they
-cannot see each other. `Connect The Radios Of The Phone And The Head Unit` puts a bridge between them. In the phone's
-radio the bridge is a device with the head unit's name; in the head unit's radio it is a device with the phone's; and
-what either says to it, it says to the other. It reaches each radio through the lease (the exporter's `bluetooth`
-driver).
+cannot see each other. They are leased together, from the lease template `phone-and-head-unit`
+(`jmp get lease-templates`), and the lease joins their radios: its forward `bluetooth` connects the `bluetooth`
+port of the phone to that of the head unit. No part of a suite carries the traffic, and nothing of it passes
+through where the suite runs.
 
-Two things follow from that, and are worth knowing when you read a failure:
+```robotframework
+Library    jumpstarter_robot.Lease    phone-and-head-unit    duration=30 minutes    AS    lease.devices
 
-* each device pairs with the bridge, a pairing each; the suite reads the code both show and checks they are the same;
-* each device knows the other by the bridge's address, not by the other's own.
+Acquire Lease                                        # both devices, or neither
+Phone Power On
+Head Unit Power On
+Wait Until Forward Is Listening    bluetooth         # the radios are joined
+```
 
-What the lab provides for it: each exporter has, beside its Cuttlefish and Android drivers, one that reaches the
-radio's HCI port (`netsimd --hci_port`, 7300 by default):
+Each role of the lease is a session (`phone`, `headunit`): every keyword that takes a `session` takes a role.
+
+Each device's exporter has a radio driver (`bt_radio`) beside the radio: one half of a bridge. In the phone's radio
+the half is a device with the head unit's name; in the head unit's radio the other half is a device with the
+phone's; and what either device says to its half, the other half says to the other device. The forward is the path
+between the two halves. `Connect The Radios Of The Phone And The Head Unit` only tells each half who the device
+beside it is, as the device itself reports it over ADB (`Phone Radio Set Identity`, `Head Unit Radio Set Identity`):
+
+* its name and class, which the other half carries, so the head unit lists the phone under the phone's own name;
+* its address, which is where its half calls it. Pairing is started on the head unit, so the half beside the phone
+  has to call the phone, and it can only call an address. (Both Cuttlefish devices have the same address,
+  `DA:4C:10:DE:00:00`. That does no harm: they are never in one radio.)
+
+Two things follow from the bridge, and are worth knowing when you read a failure:
+
+* each device pairs with the half in its own radio, a pairing each; the suite reads the code both show and checks
+  they are the same;
+* each device knows the other by its half's address, not by the other's own.
+
+A third is about a lease you keep from one run to the next. A half keeps the key of its pairing for as long as the
+lease. A suite that makes the devices forget each other (`Forget Paired Devices`, at the start of every pairing)
+leaves the half beside the phone with a key the phone no longer has. A radio driver from before that was mended
+(`jumpstarter-driver-radio`, "pair anew with a device that forgot its pairing") then cannot call the phone again: the
+phone never asks about the pairing, and `j phone bt_radio status` shows `linked` without `encrypted` and something
+`held`. With such an exporter image, pair once in a lease: run each suite on a lease of its own, which is what a
+suite does when you hold none.
+
+What the lab provides for it: each exporter has, beside its Cuttlefish and Android drivers, a driver for each radio
+(`cluster/devices` in this repository). The Bluetooth one stands on the radio's HCI port (`netsimd --hci_port`, 7300
+by default), under the name and class the device has until a suite says otherwise:
 
 ```yaml
-bluetooth:
-  type: jumpstarter_driver_network.driver.TcpNetwork
+bt_radio:
+  type: jumpstarter_driver_radio.bluetooth.RootcanalBluetooth
   config:
-    host: 127.0.0.1
+    name: Cuttlefish phone
+    class_of_device: 0x5A020C
     port: 7300
 ```
 
-Which devices are leased is at the top of `resources/devices.resource` (`${PHONE SELECTOR}`,
-`${HEAD UNIT SELECTOR}`); override them with `--variable "PHONE SELECTOR:type=phone"`.
+and the lease template names the forward (`cluster/templates/phone-and-head-unit.yaml`):
+
+```yaml
+forwards:
+  - name: bluetooth
+    endpoints:
+      - { member: phone, port: bluetooth }
+      - { member: headunit, port: bluetooth }
+```
+
+To see how the radios are doing: `jmp shell -t phone-and-head-unit`, then `j-forward status`,
+`j phone bt_radio status` and `j headunit bt_radio status` (`heard` and `sent` count what crossed).
+
+Which lease template the devices come from is at the top of `resources/devices.resource` (`${LEASE TEMPLATE}`).
 
 What a screen cannot show here is read with ADB instead, and the suites say so where it happens:
 
@@ -98,7 +143,7 @@ how to set one up). The suites join those ports to the head unit:
 
 ```
 resources/ipad.resource      the iPad: its lease, what is pressed on it (Appium, XCUITest), and the two joins
-libraries/BluetoothBridge.py the same bridge as between two virtual devices: one of its radios is now real
+libraries/BluetoothBridge.py a bridge between two radios that the suite runs itself: one of its radios is real
 libraries/PortRelay.py       a port of the gateway's Wi-Fi network, answered by a port inside the head unit
 ```
 
@@ -111,6 +156,10 @@ They need what the other suites do not:
   network's password. While it is on that network the iPad has no internet.
 
 Over Wi-Fi the iPad reaches one port of the head unit, relayed; the two are not on one network.
+
+These two suites still join the radios themselves, as the Bluetooth suites did before a lease could: the bridge
+and the relay run where the suite runs. They have not been moved to a lease with members (the lease template
+`ipad-and-head-unit` has no forwards yet), and have not been run since the phone and the head unit were.
 
 ## The test player
 

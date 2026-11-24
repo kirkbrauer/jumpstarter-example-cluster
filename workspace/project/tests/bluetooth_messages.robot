@@ -11,7 +11,7 @@ Suite Setup       Run Keywords    Lease The Phone And The Head Unit
 ...               AND    Pair The Phone With The Head Unit
 ...               AND    Let The Head Unit Keep The Phone's Messages
 ...               AND    Head Unit Should Be Ready For Messages
-Suite Teardown    Run Keywords    Stop Bluetooth Bridge    AND    Release The Phone And The Head Unit
+Suite Teardown    Release The Phone And The Head Unit
 
 
 *** Variables ***

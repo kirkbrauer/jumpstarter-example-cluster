@@ -9,6 +9,8 @@ Documentation     A real iPad on a bench, and the virtual head unit it is tested
 ...               `--variable`. See `tests/ipad_bluetooth.robot`.
 Resource          media.resource
 Library           jumpstarter_robot.Session    ipad    selector=${IPAD SELECTOR}    AS    session.ipad
+# (the iPad's suites still join the radios themselves: see the README)
+Library           ../libraries/BluetoothBridge.py
 Library           ../libraries/PortRelay.py
 
 

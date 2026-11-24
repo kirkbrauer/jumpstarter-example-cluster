@@ -45,7 +45,7 @@ Pair The Phone With The Head Unit For Music
     Wait Until Keyword Succeeds    3x    1s    Pair And Wait For Music
 
 Pair And Wait For Music
-    Stop Bluetooth Bridge
+    Disconnect The Radios Of The Phone And The Head Unit
     Pair The Phone With The Head Unit
     Head Unit Should Be Ready For Music
 

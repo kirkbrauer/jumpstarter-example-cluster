@@ -9,7 +9,7 @@ Resource          ../resources/calls.resource
 Suite Setup       Run Keywords    Lease The Phone And The Head Unit
 ...               AND    Pair The Phone With The Head Unit
 ...               AND    Head Unit Should Be Ready For Calls
-Suite Teardown    Run Keywords    Stop Bluetooth Bridge    AND    Release The Phone And The Head Unit
+Suite Teardown    Release The Phone And The Head Unit
 Test Teardown     Run Keywords    Hang Up On The Head Unit    AND    Phone Should Have No Call
 
 

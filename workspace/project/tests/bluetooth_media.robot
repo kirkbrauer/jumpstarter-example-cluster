@@ -12,7 +12,7 @@ Suite Setup       Run Keywords    Lease The Phone And The Head Unit
 ...               AND    Open Bluetooth Audio On The Head Unit
 ...               AND    Open The Test Player On The Phone
 ...               AND    Offer The Phone's Music To The Head Unit
-Suite Teardown    Run Keywords    Stop Bluetooth Bridge    AND    Release The Phone And The Head Unit
+Suite Teardown    Release The Phone And The Head Unit
 Test Setup        Start From The First Track, Paused
 
 

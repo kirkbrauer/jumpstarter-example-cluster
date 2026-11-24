@@ -1,52 +1,31 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
-# Lease the phone and the head unit of the Bluetooth suites, and keep them.
+# Lease the phone and the head unit of the Bluetooth suites, together in one lease, and keep them.
 #
 #   ./lease-devices.sh             lease both for 2 hours (a lease you already hold is kept as it is)
 #   ./lease-devices.sh 4h          the same, for 4 hours
-#   ./lease-devices.sh --release   give both back
+#   ./lease-devices.sh --release   give them back
 #
-# A suite uses a lease you already hold for its selector, and leaves it with you when it ends. So with the
-# devices leased here, their screens stay open in the Jumpstarter view from one run to the next.
+# A suite uses a lease you already hold from its lease template, and leaves it with you when it ends. So with
+# the devices leased here, their screens stay open in the Jumpstarter view from one run to the next.
 #
-# The selectors are those of `resources/devices.resource`; to lease other devices, set them for both:
+# The lease template is that of `resources/devices.resource`; to lease from another, set it for both:
 #
-#   PHONE_SELECTOR=type=phone HEAD_UNIT_SELECTOR=type=head-unit ./lease-devices.sh
-#   robot --variable "PHONE SELECTOR:type=phone" --variable "HEAD UNIT SELECTOR:type=head-unit" tests/...
+#   LEASE_TEMPLATE=my-phone-and-head-unit ./lease-devices.sh
+#   robot --variable "LEASE TEMPLATE:my-phone-and-head-unit" tests/...
 set -euo pipefail
 
-PHONE_SELECTOR="${PHONE_SELECTOR:-device=cf-phone}"
-HEAD_UNIT_SELECTOR="${HEAD_UNIT_SELECTOR:-device=cf-headunit}"
+LEASE_TEMPLATE="${LEASE_TEMPLATE:-phone-and-head-unit}"
 
-# The names of the leases this client holds for a selector, one on a line.
+# The names of the leases this client holds from a lease template, one on a line.
 held() {
     jmp get leases -o json | python3 -c '
 import json, sys
 for lease in json.load(sys.stdin).get("leases") or []:
-    if lease.get("selector") == sys.argv[1]:
+    if (lease.get("template") or {}).get("template") == sys.argv[1]:
         print(lease["name"])
 ' "$1"
-}
-
-lease() {
-    local device="$1" selector="$2" duration="$3" name
-    name="$(held "$selector" | head -n 1)"
-    if [ -n "$name" ]; then
-        echo "$device: already leased ($selector): $name"
-        return
-    fi
-    echo "$device: leasing $selector for $duration ..."
-    name="$(jmp create lease --selector "$selector" --duration "$duration" -o name)"
-    echo "$device: $name"
-}
-
-release() {
-    local device="$1" selector="$2" name
-    for name in $(held "$selector"); do
-        jmp delete leases "$name" >/dev/null
-        echo "$device: released $name"
-    done
 }
 
 case "${1:-}" in
@@ -54,14 +33,22 @@ case "${1:-}" in
         sed -n '3,16p' "$0" | sed 's/^# \{0,1\}//'
         ;;
     --release)
-        release "phone" "$PHONE_SELECTOR"
-        release "head unit" "$HEAD_UNIT_SELECTOR"
+        for name in $(held "$LEASE_TEMPLATE"); do
+            jmp delete leases "$name" >/dev/null
+            echo "released $name"
+        done
         ;;
     *)
-        lease "phone" "$PHONE_SELECTOR" "${1:-2h}"
-        lease "head unit" "$HEAD_UNIT_SELECTOR" "${1:-2h}"
+        name="$(held "$LEASE_TEMPLATE" | head -n 1)"
+        if [ -n "$name" ]; then
+            echo "already leased ($LEASE_TEMPLATE): $name"
+        else
+            echo "leasing $LEASE_TEMPLATE for ${1:-2h} ..."
+            name="$(jmp create lease --lease-template "$LEASE_TEMPLATE" --duration "${1:-2h}" -o name)"
+            echo "$name"
+        fi
         echo
-        echo "Open their screens: Jumpstarter view > Leases > a lease > its screen > Open View."
+        echo "Open their screens: Jumpstarter view > Leases > the lease > a device's screen > Open View."
         echo "Then run a suite: robot --outputdir results tests/bluetooth_pairing.robot"
         ;;
 esac
