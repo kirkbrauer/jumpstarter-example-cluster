@@ -36,7 +36,7 @@ RUN python3.12 -m venv /opt/jumpstarter/venv \
         "jumpstarter-robot[mobile,ssh]" jumpstarter-testing jumpstarter-imagehash \
         jumpstarter-driver-composite jumpstarter-driver-power jumpstarter-driver-network \
         jumpstarter-driver-pyserial jumpstarter-driver-ssh jumpstarter-driver-opendal \
-        jumpstarter-driver-adb jumpstarter-driver-appium jumpstarter-driver-qemu \
+        jumpstarter-driver-adb jumpstarter-driver-appium jumpstarter-driver-iosdevice jumpstarter-driver-qemu \
         "jumpstarter-driver-hmi[restream]" jumpstarter-driver-cuttlefish \
         jumpstarter-driver-netsim jumpstarter-driver-bt-peer jumpstarter-driver-radio bumble \
         jumpstarter-web jumpstarter-web-plugin-hmi jumpstarter-web-plugin-appium-inspector \
