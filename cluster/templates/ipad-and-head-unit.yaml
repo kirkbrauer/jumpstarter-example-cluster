@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # A real iPad on a bench (../../physical/ios) and a virtual head unit in one lease: a physical device and a
-# virtual one together.
+# virtual one together. The lease joins them: the real Bluetooth controller beside the iPad with the head
+# unit's virtual radio, and the one port of the bench's test Wi-Fi with a port inside the head unit.
 #
 #   jmp shell -t ipad-and-head-unit
 #   j ipad ...      j headunit ...
@@ -23,5 +24,17 @@ spec:
       selector:
         matchLabels:
           device: cf-headunit
+  # The lease carries what goes between the two devices: nothing in a test does.
+  forwards:
+    # A real controller beside the iPad and the head unit's virtual radio: two halves of one bridge.
+    - name: bluetooth
+      endpoints:
+        - { member: ipad, port: bluetooth }
+        - { member: headunit, port: bluetooth }
+    # What the iPad connects to on the test Wi-Fi (the edge gateway's port) is port 8000 inside the head unit.
+    - name: web
+      endpoints:
+        - { member: headunit, port: web }
+        - { member: ipad, port: wifi-service }
   defaults:
     duration: 2h

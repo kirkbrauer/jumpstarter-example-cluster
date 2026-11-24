@@ -104,4 +104,15 @@ spec:
           port: 7310
         name: wifi_radio
         type: jumpstarter_driver_radio.wmediumd.WmediumdWifi
+      # A TCP port inside the head unit, as a port that a forward of a lease joins: what a device on a bench's
+      # test Wi-Fi connects to (../templates/ipad-and-head-unit.yaml). The address is the guest's own, on the
+      # tap that Cuttlefish gives its first instance: the exporter reaches it from beside the device.
+      - config:
+          host: 192.168.97.2
+          port: 8000
+          ports:
+          - direction: provides
+            name: web
+        name: web
+        type: jumpstarter_driver_network.driver.TcpNetwork
   virtualTargetClassName: cf-headunit
