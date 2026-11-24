@@ -68,6 +68,11 @@ Connect The Radios Of The Phone And The Head Unit
     ...    the other device's real name: that name is what the other device lists.
     ${phone}=    Get Bluetooth Identity    phone
     ${head unit}=    Get Bluetooth Identity    headunit
+    # Both radios run from the start of the lease. After `Disconnect The Radios Of The Phone And The Head Unit`
+    # neither does, and each has to be started before either can find the other: a half waits for the far
+    # half, and a far half that is stopped never comes.
+    Phone Radio Start
+    Head Unit Radio Start
     Phone Radio Wait Until Joined
     Head Unit Radio Wait Until Joined
     Wait Until Keyword Succeeds    60s    2s    Radios Should Carry Each Other's Names    ${phone}    ${head unit}
@@ -122,6 +127,19 @@ Pair The Phone With The Head Unit
     Confirm The Pairing On The Phone
     Allow The Head Unit To Read Messages On The Phone
     Head Unit Should Be Connected To The Phone
+    Wait Until Keyword Succeeds    90s    1s    The Connection Should Have Settled
+
+The Connection Should Have Settled
+    [Documentation]    Two devices that have just paired go on talking for a while: each opens the profiles it
+    ...    wants of the other (calls, music, contacts, messages), and the head unit copies the phone book. A
+    ...    "Disconnect" pressed in the middle of that is undone by a profile that was still on its way. This
+    ...    holds once almost nothing has crossed between the two radios for a few seconds: the bridge counts
+    ...    what each device said.
+    ${before}=    Phone Radio Status
+    Sleep    4s
+    ${after}=    Phone Radio Status
+    ${crossed}=    Evaluate    (${after}[heard] + ${after}[sent]) - (${before}[heard] + ${before}[sent])
+    Should Be True    ${crossed} <= 4    The devices are still talking: ${crossed} packets in four seconds.
 
 # ---- Pairing: started from either device's settings, confirmed on both -------------------------------------------------
 #
@@ -314,7 +332,18 @@ Forget Paired Devices
     ADB Shell    am force-stop com.android.settings
     ADB Shell    su 0 cmd bluetooth_manager factoryReset
     ADB Shell    cmd bluetooth_manager enable
-    ADB Shell    cmd bluetooth_manager wait-for-state:STATE_ON    timeout=60s
+    ${on}=    Run Keyword And Return Status
+    ...    ADB Shell    cmd bluetooth_manager wait-for-state:STATE_ON    timeout=60s
+    IF    not ${on}
+        # Seen once on a head unit: after the reset its Bluetooth stayed in TURNING_OFF for minutes, the
+        # Bluetooth app saying nothing more (no link was up, and nothing of the bridge was in the way). Android
+        # starts the app again when it is killed, and Bluetooth then comes on.
+        Log    Bluetooth did not come back on after the reset: restarting the device's Bluetooth app.    WARN
+        ADB Shell    su 0 killall com.android.bluetooth
+        Sleep    3s
+        ADB Shell    cmd bluetooth_manager enable
+        ADB Shell    cmd bluetooth_manager wait-for-state:STATE_ON    timeout=60s
+    END
     Wait Until Keyword Succeeds    30s    2s    No Device Should Be Paired
 
 No Device Should Be Paired
