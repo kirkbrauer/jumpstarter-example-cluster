@@ -93,4 +93,15 @@ spec:
           port: 7300
         name: bluetooth
         type: jumpstarter_driver_network.driver.TcpNetwork
+      # The radios, as ports that the forwards of a lease join (../templates): one half of a bridge beside each.
+      - config:
+          class_of_device: 2098184
+          name: Cuttlefish head unit
+          port: 7300
+        name: bt_radio
+        type: jumpstarter_driver_radio.bluetooth.RootcanalBluetooth
+      - config:
+          port: 7310
+        name: wifi_radio
+        type: jumpstarter_driver_radio.wmediumd.WmediumdWifi
   virtualTargetClassName: cf-headunit

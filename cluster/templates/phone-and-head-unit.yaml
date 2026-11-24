@@ -27,5 +27,15 @@ spec:
       selector:
         matchLabels:
           device: cf-headunit
+  # The lease joins the two devices' radios: nothing in a test carries the traffic.
+  forwards:
+    - name: bluetooth
+      endpoints:
+        - { member: phone, port: bluetooth }
+        - { member: headunit, port: bluetooth }
+    - name: wifi
+      endpoints:
+        - { member: phone, port: hwsim }
+        - { member: headunit, port: hwsim }
   defaults:
     duration: 2h

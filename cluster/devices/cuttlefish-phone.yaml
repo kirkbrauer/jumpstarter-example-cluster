@@ -11,7 +11,8 @@
 # Cuttlefish needs KVM: the class asks for nodes labelled jumpstarter.dev/cuttlefish=true, and runs its Pod
 # privileged under the service account cuttlefish-runtime (see ../cuttlefish-runtime.yaml).
 #
-# `bluetooth` is the radio's HCI port: what the Bluetooth suites join between two devices.
+# `bt_radio` and `wifi_radio` are the radios, as ports that a lease's forwards join between two devices: what the
+# Bluetooth suites use. `bluetooth` is the radio's HCI port itself, for a suite that brings a bridge of its own.
 apiVersion: virtualtarget.jumpstarter.dev/v1alpha1
 kind: VirtualTargetClass
 metadata:
@@ -96,4 +97,15 @@ spec:
           port: 7300
         name: bluetooth
         type: jumpstarter_driver_network.driver.TcpNetwork
+      # The radios, as ports that the forwards of a lease join (../templates): one half of a bridge beside each.
+      - config:
+          class_of_device: 5898764
+          name: Cuttlefish phone
+          port: 7300
+        name: bt_radio
+        type: jumpstarter_driver_radio.bluetooth.RootcanalBluetooth
+      - config:
+          port: 7310
+        name: wifi_radio
+        type: jumpstarter_driver_radio.wmediumd.WmediumdWifi
   virtualTargetClassName: cf-phone
