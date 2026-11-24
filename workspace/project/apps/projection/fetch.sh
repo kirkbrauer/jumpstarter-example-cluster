@@ -22,7 +22,7 @@ fetch() { # name url sha256
         return
     fi
     echo "fetching $1"
-    curl --fail --location --silent --show-error --output "$1.part" "$2"
+    curl --fail --location --silent --show-error --retry 3 --retry-all-errors --output "$1.part" "$2"
     echo "$3  $1.part" | sha256 -c - >/dev/null || { rm -f "$1.part"; echo "checksum of $1 is not the one expected" >&2; exit 1; }
     mv "$1.part" "$1"
 }
