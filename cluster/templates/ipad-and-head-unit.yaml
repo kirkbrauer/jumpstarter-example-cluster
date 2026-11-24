@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# A real iPad on a bench (../../physical/ios) and a virtual head unit in one lease: a physical device and a
+# virtual one together.
+#
+#   jmp shell -t ipad-and-head-unit
+#   j ipad ...      j headunit ...
+apiVersion: jumpstarter.dev/v1alpha1
+kind: LeaseTemplate
+metadata:
+  name: ipad-and-head-unit
+  namespace: jumpstarter-lab
+spec:
+  description: A real iPad on a bench and a virtual Android Automotive head unit
+  instructions: |
+    The iPad is a real device: it keeps what a lease leaves on it. The head unit is made anew for each lease.
+  members:
+    - name: ipad
+      selector:
+        matchLabels:
+          type: tablet
+    - name: headunit
+      selector:
+        matchLabels:
+          device: cf-headunit
+  defaults:
+    duration: 2h

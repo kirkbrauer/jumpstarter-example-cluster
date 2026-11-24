@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Lease templates: named sets of devices that are leased together, in one lease (JEP-0015). They need a
+# Jumpstarter build with lease templates; see ../operator.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - phone-and-head-unit.yaml
+  - ipad-and-head-unit.yaml

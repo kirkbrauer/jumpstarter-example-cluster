@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# A virtual phone and a virtual head unit in one lease: what the Bluetooth suites use.
+#
+#   jmp get lease-templates
+#   jmp shell -t phone-and-head-unit
+#   j phone ...      j headunit ...
+#
+# Both devices are Cuttlefish devices of an ExporterSet (../devices): one is made for each role when none is
+# free, and the lease holds nothing until both are there.
+apiVersion: jumpstarter.dev/v1alpha1
+kind: LeaseTemplate
+metadata:
+  name: phone-and-head-unit
+  namespace: jumpstarter-lab
+spec:
+  description: A virtual Android phone and a virtual Android Automotive head unit
+  instructions: |
+    Both devices are made anew for each lease. Power each one on before you use it:
+    j phone cuttlefish power on, j headunit cuttlefish power on.
+  members:
+    - name: phone
+      selector:
+        matchLabels:
+          device: cf-phone
+    - name: headunit
+      selector:
+        matchLabels:
+          device: cf-headunit
+  defaults:
+    duration: 2h
