@@ -32,6 +32,7 @@ Your Jumpstarter client configuration is mounted from the Secret of your Che nam
 | `tests/bluetooth_connection.robot` | A phone and a car that know each other: either disconnects and connects again, the phone comes back by itself when the car's Bluetooth does, and the phone can forget the car. |
 | `tests/bluetooth_contacts.robot` | The phone's contacts in the car, once its owner allows it: names with accents, in other scripts, written right to left, with emoji, and a very long one arrive as they are. |
 | `tests/bluetooth_messages.robot` | Text messages in the car: a message that reaches the phone reaches the head unit word for word, emoji, other scripts and long ones included. |
+| `tests/phone_projection.robot` | The phone shows on the car's screen without a cable: over Bluetooth the head unit tells the phone its Wi-Fi network, the phone joins it and projects, and a touch on the head unit reaches the phone. Open-source apps on both sides (AARE and Open Headunit, fetched by `apps/projection/fetch.sh`), not Google's Android Auto. |
 | `tests/ipad_bluetooth.robot` | A real iPad and the virtual head unit, over real Bluetooth: they pair, and a web page's audio on the iPad plays through the head unit. |
 | `tests/ipad_wifi.robot` | A real iPad, on real Wi-Fi, opens a page that the virtual head unit serves. |
 

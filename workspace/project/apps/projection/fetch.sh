@@ -14,14 +14,16 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
+
 fetch() { # name url sha256
-    if [ -f "$1" ] && echo "$3  $1" | shasum -a 256 -c - >/dev/null 2>&1; then
+    if [ -f "$1" ] && echo "$3  $1" | sha256 -c - >/dev/null 2>&1; then
         echo "have $1"
         return
     fi
     echo "fetching $1"
     curl --fail --location --silent --show-error --output "$1.part" "$2"
-    echo "$3  $1.part" | shasum -a 256 -c - >/dev/null || { rm -f "$1.part"; echo "checksum of $1 is not the one expected" >&2; exit 1; }
+    echo "$3  $1.part" | sha256 -c - >/dev/null || { rm -f "$1.part"; echo "checksum of $1 is not the one expected" >&2; exit 1; }
     mv "$1.part" "$1"
 }
 
