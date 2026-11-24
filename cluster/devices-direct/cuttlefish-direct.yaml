@@ -1,0 +1,215 @@
+# Two virtual Android devices on ONE simulated Bluetooth air, with no bridge between them.
+#
+# The head unit is an ordinary Cuttlefish device: its Pod runs the controller simulator (rootcanal, inside
+# netsim, HCI on 127.0.0.1:7300). Its exporter offers that port to the lease (`RootcanalController`, a
+# `provides` port, protocol hci-h4).
+#
+# The phone is made with `bluetooth_controller: remote`: its Pod runs no simulator, and the guest's HCI is one
+# TCP stream that Cuttlefish dials on 127.0.0.1:7301. `RemoteController` listens there, keeps that connection,
+# and is the client of the forward (a `requires` port: the exporter listens for it on 127.0.0.1:7311).
+#
+# The lease template joins the two ports. Power the head unit on first: Android on the phone does not finish
+# booting until it has a controller.
+#
+# These are not part of the kustomization of the cluster: apply them by hand, next to the regular
+# `cf-phone` / `cf-headunit`, which they do not touch. The node has room for one pair at a time.
+apiVersion: virtualtarget.jumpstarter.dev/v1alpha1
+kind: VirtualTargetClass
+metadata:
+  name: cf-phone-direct
+  namespace: jumpstarter-lab
+spec:
+  bindingMode: Immediate
+  images:
+    exporter:
+      image: jmp-registry.apps.homelab.cluster.kirkbrauer.com/jumpstarter/exporter-radio:direct-3
+      imagePullPolicy: Always
+  parameters:
+    default_build: aosp-android-latest-release/aosp_cf_x86_64_only_phone-userdebug
+    fetch_images: true
+    runtime_launcher: true
+    runtime_memory_overhead_mb: 2048
+    runtime_privileged: true
+    service_account_name: cuttlefish-runtime
+    vm_cpus: 4
+    vm_memory_mb: 4096
+    webrtc_turn: true
+    # No controller simulator in this Pod: the guest uses the one of another device of the lease.
+    bluetooth_controller: remote
+  provisioner: cuttlefish.jumpstarter.dev
+  reclaimPolicy: Delete
+  scheduling:
+    nodeSelector:
+      jumpstarter.dev/cuttlefish: "true"
+      kubernetes.io/arch: amd64
+    resources:
+      limits:
+        memory: 6Gi
+      requests:
+        cpu: "2"
+        memory: 6Gi
+---
+apiVersion: virtualtarget.jumpstarter.dev/v1alpha1
+kind: ExporterSet
+metadata:
+  name: cf-phone-direct
+  namespace: jumpstarter-lab
+spec:
+  maxReplicas: 1
+  minAvailableReplicas: 0
+  minReplicas: 0
+  recycleStrategy: ExitAndReplace
+  scaleDownCooldown: 10s
+  selector:
+    matchLabels:
+      device: cf-phone-direct
+  template:
+    metadata:
+      labels:
+        device: cf-phone-direct
+        lab: cuttlefish-direct
+    spec:
+      drivers:
+        - name: cuttlefish
+          type: jumpstarter_driver_cuttlefish.driver.Cuttlefish
+          config:
+            env_config:
+              instances:
+                - vm:
+                    cpus: 4
+                    memory_mb: 4096
+            hmi: {}
+        - name: android
+          type: jumpstarter_driver_adb.driver.AdbDevice
+          config:
+            address: 127.0.0.1:6520
+            appium:
+              capabilities:
+                appium:settings[enableMultiWindows]: true
+              env:
+                ANDROID_HOME: /opt/android-sdk
+              home: /opt/appium-home
+            server_port: 15037
+            transport: tcp
+        - name: bluetooth
+          type: jumpstarter_driver_radio.direct.RemoteController
+          config:
+            # Switch the guest's Bluetooth off and on when the far controller is a new one.
+            adb: 127.0.0.1:6520
+            adb_path: /opt/android-sdk/platform-tools/adb
+  virtualTargetClassName: cf-phone-direct
+---
+apiVersion: virtualtarget.jumpstarter.dev/v1alpha1
+kind: VirtualTargetClass
+metadata:
+  name: cf-headunit-direct
+  namespace: jumpstarter-lab
+spec:
+  bindingMode: Immediate
+  images:
+    exporter:
+      image: jmp-registry.apps.homelab.cluster.kirkbrauer.com/jumpstarter/exporter-radio:direct-3
+      imagePullPolicy: Always
+  parameters:
+    default_build: aosp-android-latest-release/aosp_cf_x86_64_auto-userdebug
+    fetch_images: true
+    runtime_launcher: true
+    runtime_memory_overhead_mb: 2048
+    runtime_privileged: true
+    service_account_name: cuttlefish-runtime
+    vm_cpus: 4
+    vm_memory_mb: 8192
+    webrtc_turn: true
+  provisioner: cuttlefish.jumpstarter.dev
+  reclaimPolicy: Delete
+  scheduling:
+    nodeSelector:
+      jumpstarter.dev/cuttlefish: "true"
+      kubernetes.io/arch: amd64
+    resources:
+      limits:
+        memory: 10Gi
+      requests:
+        cpu: "2"
+        memory: 10Gi
+---
+apiVersion: virtualtarget.jumpstarter.dev/v1alpha1
+kind: ExporterSet
+metadata:
+  name: cf-headunit-direct
+  namespace: jumpstarter-lab
+spec:
+  maxReplicas: 1
+  minAvailableReplicas: 0
+  minReplicas: 0
+  recycleStrategy: ExitAndReplace
+  scaleDownCooldown: 10s
+  selector:
+    matchLabels:
+      device: cf-headunit-direct
+  template:
+    metadata:
+      labels:
+        device: cf-headunit-direct
+        lab: cuttlefish-direct
+    spec:
+      drivers:
+        - name: cuttlefish
+          type: jumpstarter_driver_cuttlefish.driver.Cuttlefish
+          config:
+            env_config:
+              instances:
+                - vm:
+                    cpus: 4
+                    memory_mb: 8192
+            hmi: {}
+        - name: android
+          type: jumpstarter_driver_adb.driver.AdbDevice
+          config:
+            address: 127.0.0.1:6520
+            appium:
+              capabilities:
+                appium:settings[enableMultiWindows]: true
+              env:
+                ANDROID_HOME: /opt/android-sdk
+              home: /opt/appium-home
+            server_port: 15037
+            transport: tcp
+        - name: netsim
+          type: jumpstarter_driver_netsim.driver.Netsim
+        - name: bluetooth
+          type: jumpstarter_driver_radio.direct.RootcanalController
+          config:
+            port: 7300
+  virtualTargetClassName: cf-headunit-direct
+---
+apiVersion: jumpstarter.dev/v1alpha1
+kind: LeaseTemplate
+metadata:
+  name: phone-and-head-unit-direct
+  namespace: jumpstarter-lab
+spec:
+  description: A virtual Android phone that uses the Bluetooth controller simulator of a virtual head unit
+  instructions: |
+    Both devices are made anew for each lease. Power the head unit on first, then the phone:
+    j headunit cuttlefish power on, j phone cuttlefish power on.
+    The phone's Bluetooth is one more host of the head unit's simulated controller: pair them from
+    either device's own settings.
+  members:
+    - name: phone
+      selector:
+        matchLabels:
+          device: cf-phone-direct
+    - name: headunit
+      selector:
+        matchLabels:
+          device: cf-headunit-direct
+  forwards:
+    - name: bluetooth
+      endpoints:
+        - member: phone
+          port: bluetooth
+        - member: headunit
+          port: bluetooth
+  defaults:
+    duration: 2h
