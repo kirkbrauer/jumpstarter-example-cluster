@@ -23,6 +23,8 @@ ${LEASE DURATION}        30 minutes
 ${LEASE PATIENCE}        5 minutes
 # The forward of the lease that joins the two Bluetooth radios.
 ${BLUETOOTH FORWARD}     bluetooth
+# The forward of the lease that joins the two Wi-Fi radios.
+${WIFI FORWARD}          wifi
 
 
 *** Keywords ***
