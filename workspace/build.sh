@@ -23,6 +23,8 @@ cp "$wheels"/*.whl "$context/wheels/"
 cp "$vsix" "$context/extensions/vscode-jumpstarter.vsix"
 cp "$here/Containerfile" "$context/Dockerfile"
 cp -R "$here/project" "$context/project"
+# (the projection suite fetches its two apps when it runs: they are other projects' work, and not put in the image)
+rm -f "$context"/project/apps/projection/*.apk "$context"/project/apps/projection/*.part
 
 # For Claude Code in the sample project: the skills of the Jumpstarter extension's agent plugin (one source: the
 # VSIX), beside the project's .mcp.json. Claude Code keeps a configuration of its own and reads neither the editor's
