@@ -84,15 +84,6 @@ spec:
           transport: tcp
         name: android
         type: jumpstarter_driver_adb.driver.AdbDevice
-      - name: netsim
-        type: jumpstarter_driver_netsim.driver.Netsim
-      - name: bt_peer
-        type: jumpstarter_driver_bt_peer.driver.BtPeer
-      - config:
-          host: 127.0.0.1
-          port: 7300
-        name: bluetooth
-        type: jumpstarter_driver_network.driver.TcpNetwork
       # The radios, as ports that the forwards of a lease join (../templates): one half of a bridge beside each.
       - config:
           class_of_device: 2098184
