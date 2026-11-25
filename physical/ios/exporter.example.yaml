@@ -33,17 +33,21 @@ export:
     type: jumpstarter_driver_power.driver.MockPower
   # With an edge gateway beside the device (../../edge-gateway):
   # the radios it puts beside the device, as ports that the forwards of a lease join
-  # (../../cluster/templates/ipad-and-head-unit.yaml). They need jumpstarter-driver-radio in the exporter's image.
+  # (../../cluster/templates/ipad-and-head-unit.yaml). They need jumpstarter-driver-bluetooth and
+  # jumpstarter-driver-wifi in the exporter's image.
   # Bluetooth: `name`, `address` and `class_of_device` are the device's own (Settings, General, About).
   bluetooth:
-    type: jumpstarter_driver_radio.bluetooth.ControllerBluetooth
+    type: jumpstarter_driver_bluetooth.driver.Bluetooth
     config:
+      link: bridge
       name: <the device's name>
       address: <the device's Bluetooth address>
       class_of_device: 0x5A020C
       host: 127.0.0.1
       port: 7300
+      learn_name: true
+      retry: 5.0
   wifi:
-    type: jumpstarter_driver_radio.gateway.GatewayWifi
+    type: jumpstarter_driver_wifi.driver.WifiGateway
     config:
       attach: 127.0.0.1:7410

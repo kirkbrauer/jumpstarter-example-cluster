@@ -17,8 +17,8 @@ Two gateways are here, both one file of standard-library Python, run as Podman q
 | `wifi_gateway.py` | `10.77.0.1:8080` on a test Wi-Fi network, answered by whoever attaches at `127.0.0.1:7410` | One TCP port: a device on the Wi-Fi that connects to it is talking to the far end |
 
 What joins a gateway's port to a virtual device is a forward of the lease that holds both (JEP-0016): the
-exporters carry the traffic, and the test is not in the path. The exporter beside the gateway has a radio driver
-for each (`jumpstarter-driver-radio`), which declares the port; the lease template names the forwards
+exporters carry the traffic, and the test is not in the path. The exporter beside the gateway has a driver
+for each (`jumpstarter-driver-bluetooth`, `jumpstarter-driver-wifi`), which declares the port; the lease template names the forwards
 (`cluster/templates/ipad-and-head-unit.yaml`).
 
 The Wi-Fi gateway joins at the level of a connection: the physical device reaches one port of the virtual one.
@@ -43,13 +43,16 @@ half is on the air under the name of the device at the other end of the forward;
 ```yaml
 export:
   bluetooth:
-    type: jumpstarter_driver_radio.bluetooth.ControllerBluetooth
+    type: jumpstarter_driver_bluetooth.driver.Bluetooth
     config:
+      link: bridge
       name: Bench iPad
       address: "AA:BB:CC:DD:EE:FF"   # the device's Bluetooth address (Settings, General, About)
       class_of_device: 0x5A020C
       host: 127.0.0.1
       port: 7300
+      learn_name: true               # ask a device that has linked for its name, over the radio
+      retry: 5.0                     # closing the gateway's port resets the controller
 ```
 
 ## Wi-Fi
@@ -78,7 +81,7 @@ device on the Wi-Fi makes to the gateway's port goes to the `provides` port that
 ```yaml
 export:
   wifi:
-    type: jumpstarter_driver_radio.gateway.GatewayWifi
+    type: jumpstarter_driver_wifi.driver.WifiGateway
     config:
       attach: 127.0.0.1:7410
 ```

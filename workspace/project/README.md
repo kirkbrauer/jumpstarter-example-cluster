@@ -71,7 +71,7 @@ Wait Until Forward Is Listening    bluetooth         # the radios are joined
 
 Each role of the lease is a session (`phone`, `headunit`): every keyword that takes a `session` takes a role.
 
-Each device's exporter has a radio driver (`bt_radio`) beside the radio: one half of a bridge. In the phone's radio
+Each device's exporter has a Bluetooth driver (`bluetooth`) beside the radio: one half of a bridge. In the phone's radio
 the half is a device with the head unit's name; in the head unit's radio the other half is a device with the
 phone's; and what either device says to its half, the other half says to the other device. The forward is the path
 between the two halves. `Connect The Radios Of The Phone And The Head Unit` only tells each half who the device
@@ -90,9 +90,9 @@ Two things follow from the bridge, and are worth knowing when you read a failure
 
 A third is about a lease you keep from one run to the next. A half keeps the key of its pairing for as long as the
 lease. A suite that makes the devices forget each other (`Forget Paired Devices`, at the start of every pairing)
-leaves the half beside the phone with a key the phone no longer has. A radio driver from before that was mended
-(`jumpstarter-driver-radio`, "pair anew with a device that forgot its pairing") then cannot call the phone again: the
-phone never asks about the pairing, and `j phone bt_radio status` shows `linked` without `encrypted` and something
+leaves the half beside the phone with a key the phone no longer has. A Bluetooth driver from before that was mended
+(the earlier `jumpstarter-driver-radio`, before "pair anew with a device that forgot its pairing") then cannot call the phone again: the
+phone never asks about the pairing, and `j phone bluetooth status` shows `linked` without `encrypted` and something
 `held`. With such an exporter image, pair once in a lease: run each suite on a lease of its own, which is what a
 suite does when you hold none.
 
@@ -101,13 +101,19 @@ What the lab provides for it: each exporter has, beside its Cuttlefish and Andro
 by default), under the name and class the device has until a suite says otherwise:
 
 ```yaml
-bt_radio:
-  type: jumpstarter_driver_radio.bluetooth.RootcanalBluetooth
+bluetooth:
+  type: jumpstarter_driver_bluetooth.driver.Bluetooth
   config:
+    transport: tcp-client:127.0.0.1:7300
+    link: bridge
+    device:
+      adb: 127.0.0.1:6520
     name: Cuttlefish phone
     class_of_device: 0x5A020C
-    port: 7300
 ```
+
+`device` is the Android device itself, over the exporter's ADB: the half asks it who it is, and the same entry
+gives the device's own Bluetooth stack (`j phone bluetooth state`, `power on|off`, `capture start|stop|save`).
 
 and the lease template names the forward (`cluster/templates/phone-and-head-unit.yaml`):
 
@@ -120,7 +126,7 @@ forwards:
 ```
 
 To see how the radios are doing: `jmp shell -t phone-and-head-unit`, then `j-forward status`,
-`j phone bt_radio status` and `j headunit bt_radio status` (`heard` and `sent` count what crossed).
+`j phone bluetooth status` and `j headunit bluetooth status` (`heard` and `sent` count what crossed).
 
 Which lease template the devices come from is at the top of `resources/devices.resource` (`${LEASE TEMPLATE}`).
 

@@ -129,10 +129,10 @@ Two things the suites depend on that a new lab will meet:
 * the phone and the head unit of the Bluetooth suites are one lease, from the lease template
   `phone-and-head-unit`, and the lease joins their Bluetooth radios (its forward `bluetooth`): that needs a
   Jumpstarter with leases of several exporters and forwards between them (JEP-0015, JEP-0016), and an exporter
-  image with `jumpstarter-driver-radio`. Only the pairing suite has been run this way;
+  image with `jumpstarter-driver-bluetooth` and `jumpstarter-driver-wifi`. Only the pairing suite has been run this way;
 * the iPad and the head unit are one lease too, from `ipad-and-head-unit`, whose forwards join the real
   Bluetooth controller beside the iPad to the head unit's radio and the test Wi-Fi's port to a port inside the
-  head unit: the iPad's exporter needs the same Jumpstarter and `jumpstarter-driver-radio` (`physical/ios`);
+  head unit: the iPad's exporter needs the same Jumpstarter and the same two packages (`physical/ios`);
 * the head unit and phone are stock AOSP images, without Google services: there is no Android Auto projection.
 
 ## Licence
