@@ -118,30 +118,46 @@ Bring The Phone Into The Car
     ADB Shell    cmd bluetooth_manager enable
     ADB Shell    cmd bluetooth_manager wait-for-state:STATE_ON    timeout=60s
 
-Let The Phone Join The Head Unit's Network
-    [Documentation]    Android asks the phone's owner before AARE joins the Wi-Fi network the head unit named:
-    ...    chooses the network and presses "Connect". Asked once; later Android remembers the answer.
-    On The Phone
-    Press    ${PHONE NETWORK TO JOIN}    timeout=35s
-    Press    ${PHONE JOIN NETWORK BUTTON}    timeout=10s
-
-Trust The Head Unit On The Phone
-    [Documentation]    The first time AARE meets a head unit it stops and asks whether to trust it. Says yes.
-    Start AARE On The Phone
-    Press    ${AARE TRUST HEAD UNIT}    timeout=20s
-
 Start Projecting From The Phone To The Head Unit
     [Documentation]    The whole of it, for a phone and a head unit that are paired: the phone comes into the
     ...    car, its owner lets it join the car's network, and trusts the car the first time.
+    ...
+    ...    When the phone asks is its own business: AARE reaches the head unit on its first try or on its third
+    ...    (10 and 20 seconds apart), and only then does Android ask about the network. So nothing is pressed at
+    ...    a set time: the phone is watched until it projects, and what it asks on the way is answered.
     Bring The Phone Into The Car
-    Run Keyword And Ignore Error    Let The Phone Join The Head Unit's Network
     ${projecting}=    Run Keyword And Return Status
-    ...    Wait Until Keyword Succeeds    45s    3s    Phone Should Be Projecting
+    ...    Wait Until Keyword Succeeds    100s    3s    Phone Should Be Projecting, Its Owner Having Answered
     IF    not ${projecting}
-        Trust The Head Unit On The Phone
+        # AARE has given up for now, or waits behind something else with its question: opened again, it asks.
+        Start AARE On The Phone
         Bring The Phone Into The Car
-        Run Keyword And Ignore Error    Let The Phone Join The Head Unit's Network
-        Wait Until Keyword Succeeds    60s    3s    Phone Should Be Projecting
+        Wait Until Keyword Succeeds    120s    3s    Phone Should Be Projecting, Its Owner Having Answered
+    END
+
+Phone Should Be Projecting, Its Owner Having Answered
+    [Documentation]    Answers what the phone is asking now, if it is asking, and holds once it projects.
+    On The Phone
+    Let The Phone Join The Head Unit's Network If It Asks
+    Trust The Head Unit On The Phone If It Asks
+    Phone Should Be Projecting
+
+Let The Phone Join The Head Unit's Network If It Asks
+    [Documentation]    Android asks the phone's owner before AARE joins the Wi-Fi network the head unit named:
+    ...    chooses the network and presses "Connect". Asked once; later Android remembers the answer.
+    ${asked}=    Run Keyword And Return Status    Page Should Contain Element    ${PHONE NETWORK TO JOIN}
+    IF    ${asked}
+        Click Element    ${PHONE NETWORK TO JOIN}
+        Press    ${PHONE JOIN NETWORK BUTTON}    timeout=10s
+    END
+
+Trust The Head Unit On The Phone If It Asks
+    [Documentation]    The first time AARE meets a head unit it stops and asks whether to trust it. Says yes,
+    ...    and brings the phone into the car once more: AARE starts over with a head unit it now trusts.
+    ${asked}=    Run Keyword And Return Status    Page Should Contain Element    ${AARE TRUST HEAD UNIT}
+    IF    ${asked}
+        Click Element    ${AARE TRUST HEAD UNIT}
+        Bring The Phone Into The Car
     END
 
 Phone Should Have Been Told The Head Unit's Network Over Bluetooth
