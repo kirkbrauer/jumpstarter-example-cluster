@@ -7,10 +7,11 @@ Documentation     Bluetooth between the phone and the head unit, one keyword for
 ...               The Head Unit` only waits until the two are joined and carry each other's names. What a person
 ...               would press is pressed with Appium (AppiumLibrary); what a device then believes is read with ADB.
 Resource          devices.resource
-# The Bluetooth radio of each device (the exporter's `bt_radio` driver): one half of the bridge between the two.
-Library           jumpstarter_robot.Driver    bt_radio    client=jumpstarter_driver_radio.client.BluetoothRadioClient
+# The Bluetooth of each device (the exporter's `bluetooth` driver): one half of the bridge between the two, and
+# the device's own Bluetooth stack.
+Library           jumpstarter_robot.Driver    bluetooth    client=jumpstarter_driver_bluetooth.client.BluetoothClient
 ...               prefix=Phone Radio    session=phone    AS    phone.radio
-Library           jumpstarter_robot.Driver    bt_radio    client=jumpstarter_driver_radio.client.BluetoothRadioClient
+Library           jumpstarter_robot.Driver    bluetooth    client=jumpstarter_driver_bluetooth.client.BluetoothClient
 ...               prefix=Head Unit Radio    session=headunit    AS    headunit.radio
 
 

@@ -11,9 +11,9 @@ Documentation     A real iPad on a bench, and the virtual head unit it is tested
 Resource          media.resource
 # The radios beside the iPad (its exporter's `bluetooth` and `wifi` drivers): the real controller's half of the
 # Bluetooth bridge, and what answers the one port of the test Wi-Fi.
-Library           jumpstarter_robot.Driver    bluetooth    client=jumpstarter_driver_radio.client.BluetoothRadioClient
+Library           jumpstarter_robot.Driver    bluetooth    client=jumpstarter_driver_bluetooth.client.BluetoothClient
 ...               prefix=iPad Radio    session=ipad    AS    ipad.radio
-Library           jumpstarter_robot.Driver    wifi    client=jumpstarter_driver_radio.client.RadioClient
+Library           jumpstarter_robot.Driver    wifi    client=jumpstarter_driver_wifi.client.WifiClient
 ...               prefix=iPad Wifi    session=ipad    AS    ipad.wifi
 
 
