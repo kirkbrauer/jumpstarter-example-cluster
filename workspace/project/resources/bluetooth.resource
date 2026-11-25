@@ -58,10 +58,27 @@ ${HEAD UNIT PAIR BUTTON}            id=android:id/button1
 # ---- Before pairing --------------------------------------------------------------------------------------------
 
 Forget Paired Devices On The Phone And The Head Unit
-    FOR    ${device}    IN    phone    headunit
-        Use Device Named    ${device}
-        Forget Paired Devices
+    [Documentation]    Bluetooth as it is on a device nobody has paired yet, and switched on. Each device's
+    ...    Bluetooth driver does it (`factory_reset`): a recording of the device's Bluetooth that was running
+    ...    goes on afterwards, which it does not after a reset from a shell.
+    Reset Bluetooth    phone    Phone Radio
+    Reset Bluetooth    headunit    Head Unit Radio
+
+Reset Bluetooth
+    [Arguments]    ${device}    ${radio}
+    Use Device Named    ${device}
+    ADB Shell    am force-stop com.android.settings
+    ${reset}=    Run Keyword And Return Status    Run Keyword    ${radio} Factory Reset
+    IF    not ${reset}
+        # Seen once on a head unit: after the reset its Bluetooth stayed in TURNING_OFF for minutes, the
+        # Bluetooth app saying nothing more. Android starts the app again when it is killed, and Bluetooth
+        # then comes on.
+        Log    Bluetooth did not come back on after the reset: restarting the device's Bluetooth app.    WARN
+        ADB Shell    su 0 killall com.android.bluetooth
+        Sleep    3s
+        Run Keyword    ${radio} Set Enabled    ${True}
     END
+    Wait Until Keyword Succeeds    30s    2s    No Device Should Be Paired
 
 Connect The Radios Of The Phone And The Head Unit
     [Documentation]    The lease has joined the radios already, and each radio's half of the bridge has asked the
