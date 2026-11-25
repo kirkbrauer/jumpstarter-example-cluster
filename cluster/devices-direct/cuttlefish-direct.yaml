@@ -1,11 +1,11 @@
 # Two virtual Android devices on ONE simulated Bluetooth air, with no bridge between them.
 #
 # The head unit is an ordinary Cuttlefish device: its Pod runs the controller simulator (rootcanal, inside
-# netsim, HCI on 127.0.0.1:7300). Its exporter offers that port to the lease (`RootcanalController`, a
+# netsim, HCI on 127.0.0.1:7300). Its exporter offers that port to the lease (`link: controller-port`, a
 # `provides` port, protocol hci-h4).
 #
 # The phone is made with `bluetooth_controller: remote`: its Pod runs no simulator, and the guest's HCI is one
-# TCP stream that Cuttlefish dials on 127.0.0.1:7301. `RemoteController` listens there, keeps that connection,
+# TCP stream that Cuttlefish dials on 127.0.0.1:7301. `link: remote-controller` listens there, keeps that connection,
 # and is the client of the forward (a `requires` port: the exporter listens for it on 127.0.0.1:7311).
 #
 # The lease template joins the two ports. Power the head unit on first: Android on the phone does not finish
@@ -22,7 +22,7 @@ spec:
   bindingMode: Immediate
   images:
     exporter:
-      image: jmp-registry.apps.homelab.cluster.kirkbrauer.com/jumpstarter/exporter-radio:direct-3
+      image: jmp-registry.apps.homelab.cluster.kirkbrauer.com/jumpstarter/exporter-bluetooth-wifi:3
       imagePullPolicy: Always
   parameters:
     default_build: aosp-android-latest-release/aosp_cf_x86_64_only_phone-userdebug
@@ -92,11 +92,14 @@ spec:
             server_port: 15037
             transport: tcp
         - name: bluetooth
-          type: jumpstarter_driver_radio.direct.RemoteController
+          type: jumpstarter_driver_bluetooth.driver.Bluetooth
           config:
-            # Switch the guest's Bluetooth off and on when the far controller is a new one.
-            adb: 127.0.0.1:6520
-            adb_path: /opt/android-sdk/platform-tools/adb
+            link: remote-controller
+            # The Android device itself: its Bluetooth is switched off and on when the far controller is a new
+            # one, and its own stack can be asked (`j phone bluetooth state`).
+            device:
+              adb: 127.0.0.1:6520
+              adb_path: /opt/android-sdk/platform-tools/adb
   virtualTargetClassName: cf-phone-direct
 ---
 apiVersion: virtualtarget.jumpstarter.dev/v1alpha1
@@ -108,7 +111,7 @@ spec:
   bindingMode: Immediate
   images:
     exporter:
-      image: jmp-registry.apps.homelab.cluster.kirkbrauer.com/jumpstarter/exporter-radio:direct-3
+      image: jmp-registry.apps.homelab.cluster.kirkbrauer.com/jumpstarter/exporter-bluetooth-wifi:3
       imagePullPolicy: Always
   parameters:
     default_build: aosp-android-latest-release/aosp_cf_x86_64_auto-userdebug
@@ -178,9 +181,13 @@ spec:
         - name: netsim
           type: jumpstarter_driver_netsim.driver.Netsim
         - name: bluetooth
-          type: jumpstarter_driver_radio.direct.RootcanalController
+          type: jumpstarter_driver_bluetooth.driver.Bluetooth
           config:
-            port: 7300
+            link: controller-port
+            transport: tcp-client:127.0.0.1:7300
+            device:
+              adb: 127.0.0.1:6520
+              adb_path: /opt/android-sdk/platform-tools/adb
   virtualTargetClassName: cf-headunit-direct
 ---
 apiVersion: jumpstarter.dev/v1alpha1
