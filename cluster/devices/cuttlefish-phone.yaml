@@ -11,8 +11,8 @@
 # Cuttlefish needs KVM: the class asks for nodes labelled jumpstarter.dev/cuttlefish=true, and runs its Pod
 # privileged under the service account cuttlefish-runtime (see ../cuttlefish-runtime.yaml).
 #
-# `bt_radio` and `wifi_radio` are the radios, as ports that a lease's forwards join between two devices: what the
-# Bluetooth suites use. `bluetooth` is the radio's HCI port itself, for a suite that brings a bridge of its own.
+# `bluetooth` and `wifi` are the device's radios, as ports that a lease's forwards join between two devices: what
+# the Bluetooth suites use. `bluetooth` is also the device's own Bluetooth stack: `j phone bluetooth state`.
 apiVersion: virtualtarget.jumpstarter.dev/v1alpha1
 kind: VirtualTargetClass
 metadata:
@@ -88,15 +88,23 @@ spec:
           transport: tcp
         name: android
         type: jumpstarter_driver_adb.driver.AdbDevice
-      # The radios, as ports that the forwards of a lease join (../templates): one half of a bridge beside each.
+      # The device's Bluetooth, as one entry (jumpstarter-driver-bluetooth). `link: bridge` is one half of a bridge
+      # on the virtual radio's HCI port: the port `bluetooth`, which a forward of a lease joins to another
+      # device's (../templates). `device` is the Android device itself, over the ADB server of `android` above:
+      # who it is on the air, its adapter's state and bonds, Bluetooth on and off, and its HCI recorded.
       - config:
           class_of_device: 5898764
+          device:
+            adb: 127.0.0.1:6520
+            adb_path: /opt/android-sdk/platform-tools/adb
+          link: bridge
           name: Cuttlefish phone
-          port: 7300
-        name: bt_radio
-        type: jumpstarter_driver_radio.bluetooth.RootcanalBluetooth
+          transport: tcp-client:127.0.0.1:7300
+        name: bluetooth
+        type: jumpstarter_driver_bluetooth.driver.Bluetooth
+      # The device's Wi-Fi (jumpstarter-driver-wifi): a frame bridge beside its simulated medium, the port `hwsim`.
       - config:
           port: 7310
-        name: wifi_radio
-        type: jumpstarter_driver_radio.wmediumd.WmediumdWifi
+        name: wifi
+        type: jumpstarter_driver_wifi.driver.WifiMedium
   virtualTargetClassName: cf-phone
