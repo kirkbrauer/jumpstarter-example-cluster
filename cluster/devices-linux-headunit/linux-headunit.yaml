@@ -31,8 +31,8 @@
 # with `guest_listens`, and jumpstarter-driver-wifi with `external`.
 # The two classes are the lab's own `cf-phone` and `qemu-x86-64`, with the exporter image that has the drivers
 # these devices need (../../images/exporter-linux-headunit), so that the lab's other devices stay as they are.
-# They ask the scheduler for less memory than the lab's classes do: the lab is one node, which keeps a phone and
-# a head unit ready besides. The guests have what they need (4 GiB each).
+# The head unit's class asks the scheduler for less memory than the lab's QEMU class does: the lab is one node.
+# (The phone's cannot: the Cuttlefish provisioner wants the request to cover the guest and its overhead.)
 apiVersion: virtualtarget.jumpstarter.dev/v1alpha1
 kind: VirtualTargetClass
 metadata:
@@ -65,7 +65,7 @@ spec:
         memory: 6Gi
       requests:
         cpu: "1"
-        memory: 3Gi
+        memory: 6Gi
 ---
 apiVersion: virtualtarget.jumpstarter.dev/v1alpha1
 kind: VirtualTargetClass

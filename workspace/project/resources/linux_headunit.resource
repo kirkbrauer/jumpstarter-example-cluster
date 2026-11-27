@@ -54,23 +54,42 @@ Head Unit Shell Over ssh
 
 Head Unit Shell Over console
     [Documentation]    The same on the serial console: the command's exit status is asked for after it, since a
-    ...    console has only what is printed.
+    ...    console has only what is printed. What a terminal adds (the command as it was typed, and the escape
+    ...    codes around what it printed) is taken out.
     [Arguments]    ${command}    ${expected_rc}
     Switch Console    headunit
-    ${output}=    Console Execute Command    ${command}; echo "rc=$?"    timeout=60s
-    ${found}=    Should Match Regexp    ${output}    (?s)^(.*?)\\s*rc=(\\d+)\\s*$
+    Clear Console Buffer
+    ${raw}=    Console Execute Command    ${command}; echo "headunit-rc=$?"    timeout=90s
+    ${text}=    Evaluate    re.sub(r"\\x1b\\[[?0-9;]*[A-Za-z]|\\r", "", $raw)    modules=re
+    ${found}=    Evaluate    re.search(r"(?s)(?:^|\\n)(.*)headunit-rc=(\\d+)\\s*$", $text.split('headunit-rc=$?"', 1)[-1])    modules=re
+    Should Be True    $found is not None    The console did not say how `${command}` ended: ${text}
+    ${output}=    Evaluate    $found.group(1).strip()
     IF    $expected_rc not in (None, "None")
-        Should Be Equal As Integers    ${found}[2]    ${expected_rc}    `${command}` exited with ${found}[2]: ${found}[1]
+        Should Be Equal As Integers    ${found.group(2)}    ${expected_rc}    `${command}` exited with ${found.group(2)}: ${output}
     END
-    RETURN    ${found}[1]
+    RETURN    ${output}
 
 Open The Linux Head Unit
     [Documentation]    Waits until Linux has booted and answers, over SSH or on its console.
     IF    "${HEAD UNIT SHELL}" == "console"
         Open Console    ${HEAD UNIT CONSOLE}    alias=headunit    prompt=${HEAD UNIT PROMPT}    session=headunit
-        Console Login    ${HEAD UNIT USER}    ${HEAD UNIT PASSWORD}    timeout=5 min
+        Wait Until Keyword Succeeds    5 min    10s    Log In On The Head Unit's Console
     END
     Wait Until Keyword Succeeds    5 min    10s    Head Unit Shell    true
+
+Log In On The Head Unit's Console
+    [Documentation]    A console says nothing until it is spoken to: a head unit that booted a while ago printed
+    ...    its login prompt then. A line is sent, and what comes back says where the console is: at the login
+    ...    prompt, or with somebody logged in already.
+    Clear Console Buffer
+    Console Write Line
+    ${seen}=    Console Read Until Regexp    login:    \\$\\s*$    timeout=15s
+    IF    "login:" in $seen
+        Console Write Line
+        Console Login    ${HEAD UNIT USER}    ${HEAD UNIT PASSWORD}    timeout=30s
+    END
+    Console Write Line
+    Console Read Until Prompt    timeout=15s
 
 # ---- The lease ---------------------------------------------------------------------------------------------------
 
