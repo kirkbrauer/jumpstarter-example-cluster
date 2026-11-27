@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# LIVI on the head unit's screen, as LIVI's own installer starts it on a host without a desktop
+# (its resources/livi-kiosk.service.template), with software video decoding: a virtual GPU has no decoder.
+[Unit]
+Description=LIVI kiosk
+After=systemd-user-sessions.service seatd.service headunit-bluetooth.service headunit-wifi-bridge.service
+Conflicts=getty@tty1.service
+
+[Service]
+Type=simple
+User=hu
+PAMName=livi-kiosk
+WorkingDirectory=/home/hu
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+StandardInput=tty-fail
+StandardOutput=journal
+StandardError=inherit
+Environment=LIVI_KIOSK=1
+Environment=LIVI_GST_SWDEC=1
+ExecStart=/home/hu/LIVI/LIVI.AppImage
+# (on its first start LIVI sets itself up and leaves, without an error: it is started again)
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

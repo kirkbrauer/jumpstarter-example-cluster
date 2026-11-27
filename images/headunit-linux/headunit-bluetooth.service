@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=The head unit's Bluetooth controller, on a serial port
+After=bluetooth.service
+ConditionPathExists=/dev/hvc0
+
+[Service]
+ExecStart=/usr/local/sbin/headunit-bluetooth-attach /dev/hvc0
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

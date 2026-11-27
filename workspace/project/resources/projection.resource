@@ -8,7 +8,12 @@ Documentation     Phone projection without wires: what is on the phone is shown 
 ...               carries both: its `bluetooth` forward and its `wifi` forward. Nothing here carries traffic.
 ...
 ...               The two apps are fetched by `apps/projection/fetch.sh`, from each project's release page.
+...
+...               The head unit is one of two kinds (`${HEAD UNIT KIND}`): an Android Automotive device with Open
+...               Headunit, which is what this file is written for, or a Linux device with LIVI
+...               (`linux_headunit.resource`). What differs between them is asked of `<kind> Head Unit: …`.
 Resource          bluetooth.resource
+Resource          linux_headunit.resource
 Library           OperatingSystem
 Library           Process
 
@@ -23,6 +28,12 @@ ${OPEN HEADUNIT PACKAGE}            com.andrerinas.headunitrevived
 ${WIRELESS PROJECTION SERVICE}      4de17a00-52cb-11e6-bdf4-0800200c9a66
 # Where the head unit waits for the phone once it is on the head unit's Wi-Fi network.
 ${PROJECTION PORT}                  5288
+# The kind of head unit: `Android` (Open Headunit, over ADB) or `Linux` (LIVI, over SSH or a console).
+${HEAD UNIT KIND}                   Android
+# The name of the Wi-Fi network the head unit keeps for the phone, as a pattern: Android's is a Wi-Fi Direct group.
+${HEAD UNIT NETWORK}                DIRECT-[^"]+
+# The devices whose Bluetooth driver records what its stack and controller say to each other.
+@{RECORDING RADIOS}                 Phone Radio    Head Unit Radio
 
 # What AARE may do on the phone, and Open Headunit on the head unit: what a person would allow when asked.
 @{AARE PERMISSIONS}                 RECORD_AUDIO    ACCESS_FINE_LOCATION    ACCESS_COARSE_LOCATION
@@ -77,6 +88,9 @@ Install The Projection Apps
     On The Phone
     ADB Install    ${AARE APK}
     Allow    ${AARE PACKAGE}    @{AARE PERMISSIONS}
+    Run Keyword    ${HEAD UNIT KIND} Head Unit: Install The Receiver
+
+Android Head Unit: Install The Receiver
     On The Head Unit
     ADB Install    ${OPEN HEADUNIT APK}
     Allow    ${OPEN HEADUNIT PACKAGE}    @{OPEN HEADUNIT PERMISSIONS}
@@ -93,18 +107,31 @@ Switch Wi-Fi On On The Phone And The Head Unit
     [Documentation]    Both devices start with Wi-Fi off. (On a head unit only the system may switch it.)
     On The Phone
     ADB Shell    cmd wifi set-wifi-enabled enabled
+    Run Keyword    ${HEAD UNIT KIND} Head Unit: Switch Wi-Fi On
+
+Android Head Unit: Switch Wi-Fi On
     On The Head Unit
     ADB Shell    su 0 cmd wifi set-wifi-enabled enabled
 
 Start Open Headunit On The Head Unit
     [Documentation]    Opens the receiver. From then on the head unit offers wireless projection over Bluetooth
     ...    and keeps a Wi-Fi network of its own for the phone to join.
+    Run Keyword    ${HEAD UNIT KIND} Head Unit: Start The Receiver
+    Wait Until Keyword Succeeds    90s    3s    Head Unit Should Offer Wireless Projection
+
+Start The Receiver On The Head Unit
+    [Documentation]    The same, whatever the receiver is called.
+    Start Open Headunit On The Head Unit
+
+Android Head Unit: Start The Receiver
     On The Head Unit
     ADB Shell    logcat -c
     ADB Shell    monkey --pct-syskeys 0 -p ${OPEN HEADUNIT PACKAGE} -c android.intent.category.LAUNCHER 1
-    Wait Until Keyword Succeeds    60s    3s    Head Unit Should Offer Wireless Projection
 
 Head Unit Should Offer Wireless Projection
+    Run Keyword    ${HEAD UNIT KIND} Head Unit: Should Offer Wireless Projection
+
+Android Head Unit: Should Offer Wireless Projection
     On The Head Unit
     ${log}=    ADB Shell    logcat -d -s OPENHU:I
     Should Contain    ${log}    ACTIVELY LISTENING on Android Auto UUID
@@ -137,14 +164,15 @@ Record Bluetooth On The Phone And The Head Unit
     [Documentation]    Each device's Bluetooth driver records what its Bluetooth stack and its controller say to
     ...    each other (HCI), with Android's own snoop log. Starting it restarts the device's Bluetooth once, so
     ...    it is done before the two pair.
-    FOR    ${radio}    IN    Phone Radio    Head Unit Radio
+    FOR    ${radio}    IN    @{RECORDING RADIOS}
         ${recording}=    Run Keyword    ${radio} Start Capture
         Should Be Equal    ${recording}[mode]    full
     END
 
 Stop Recording Bluetooth
-    Run Keyword And Ignore Error    Phone Radio Stop Capture
-    Run Keyword And Ignore Error    Head Unit Radio Stop Capture
+    FOR    ${radio}    IN    @{RECORDING RADIOS}
+        Run Keyword And Ignore Error    ${radio} Stop Capture
+    END
 
 # ---- Projecting --------------------------------------------------------------------------------------------------
 
@@ -152,7 +180,7 @@ Bring The Phone Into The Car
     [Documentation]    A paired phone that comes into reach of the car connects to it over Bluetooth, and
     ...    projection starts from that. Here the phone's Bluetooth is switched off and on: the same to the car.
     # (what the head unit's Bluetooth records from here on is this arrival)
-    Head Unit Radio Start Capture
+    IF    "Head Unit Radio" in $RECORDING_RADIOS    Head Unit Radio Start Capture
     On The Phone
     ADB Shell    logcat -c
     ADB Shell    cmd bluetooth_manager disable
@@ -208,13 +236,13 @@ Phone Should Have Been Told The Head Unit's Network Over Bluetooth
     On The Phone
     ${log}=    ADB Shell    logcat -d -s Aare:I
     Should Contain    ${log}    wireless: RFCOMM connected to
-    Should Match Regexp    ${log}    wireless: credentials ssid="DIRECT-[^"]+"
+    Should Match Regexp    ${log}    wireless: credentials ssid="${HEAD UNIT NETWORK}"
     Should Match Regexp    ${log}    wireless: head unit AAP server [0-9.]+:${PROJECTION PORT}
 
 Phone Should Be On The Head Unit's Network
     On The Phone
     ${log}=    ADB Shell    logcat -d -s Aare:I
-    Should Match Regexp    ${log}    wireless: joined "DIRECT-[^"]+" as [0-9.]+
+    Should Match Regexp    ${log}    wireless: joined "${HEAD UNIT NETWORK}" as [0-9.]+
 
 Phone Should Be Projecting
     On The Phone
@@ -224,12 +252,20 @@ Phone Should Be Projecting
 Head Unit Should Be Showing The Phone
     [Documentation]    The head unit holds the phone's connection on the projection port, and has decoded and
     ...    drawn a picture from it.
-    On The Head Unit
     Wait Until Keyword Succeeds    60s    3s    Head Unit Should Have Drawn A Picture
-    ${connections}=    ADB Shell    su 0 ss -tn
+    ${connections}=    Run Keyword    ${HEAD UNIT KIND} Head Unit: Connections
     Should Match Regexp    ${connections}    ESTAB.*:${PROJECTION PORT}\\s
 
 Head Unit Should Have Drawn A Picture
+    Run Keyword    ${HEAD UNIT KIND} Head Unit: Should Have Drawn A Picture
+
+Android Head Unit: Connections
+    On The Head Unit
+    ${connections}=    ADB Shell    su 0 ss -tn
+    RETURN    ${connections}
+
+Android Head Unit: Should Have Drawn A Picture
+    On The Head Unit
     ${log}=    ADB Shell    logcat -d -s OPENHU:I
     Should Contain    ${log}    First frame rendered
 
@@ -262,7 +298,7 @@ Picture On The Head Unit Should Not Be
 Bluetooth Should Have Carried The Phone's Arrival
     [Documentation]    On each device's own record of its Bluetooth: since the phone came into the car a link to
     ...    the other device was made, and it was encrypted. The head unit's network name and key went over it.
-    FOR    ${radio}    IN    Phone Radio    Head Unit Radio
+    FOR    ${radio}    IN    @{RECORDING RADIOS}
         ${linked}=    Run Keyword    ${radio} Wait For Event    connection_complete    timeout=${30}    status=SUCCESS
         Should Not Be Empty    ${linked}    ${radio}: no Bluetooth link was made since the phone came into the car
         ${encrypted}=    Run Keyword    ${radio} Wait For Event    encryption_change    timeout=${30}
@@ -320,11 +356,10 @@ Disconnect The Phone From The Head Unit In AARE
 
 Head Unit Should Not Be Showing The Phone
     [Documentation]    Nothing holds the projection port on the head unit any more.
-    On The Head Unit
     Wait Until Keyword Succeeds    30s    2s    Nothing Should Be Connected To The Projection Port
 
 Nothing Should Be Connected To The Projection Port
-    ${connections}=    ADB Shell    su 0 ss -tn
+    ${connections}=    Run Keyword    ${HEAD UNIT KIND} Head Unit: Connections
     Should Not Match Regexp    ${connections}    ESTAB.*:${PROJECTION PORT}\\s
 
 Let The Phone's Sound Reach The Car
@@ -358,8 +393,7 @@ Play A Sound On The Phone
     ${found}=    ADB Shell
     ...    content query --uri content://media/internal/audio/media --projection _id --where "title='${SOUND ON THE PHONE}'"
     ${sound}=    Should Match Regexp    ${found}    _id=(\\d+)
-    On The Head Unit
-    ADB Shell    logcat -c
+    Run Keyword    ${HEAD UNIT KIND} Head Unit: Before A Sound
     On The Phone
     ADB Shell    am start -a android.intent.action.VIEW -d content://media/internal/audio/media/${sound}[1] -t audio/ogg
 
@@ -374,9 +408,16 @@ Phone Should Be Sending Its Sound To The Car
 
 Head Unit Should Be Playing The Phone's Sound
     [Documentation]    The head unit is receiving sound from the phone over the projection, and playing it.
-    On The Head Unit
     Wait Until Keyword Succeeds    60s    3s    Head Unit Should Have Received Sound
 
 Head Unit Should Have Received Sound
+    Run Keyword    ${HEAD UNIT KIND} Head Unit: Should Have Received Sound
+
+Android Head Unit: Before A Sound
+    On The Head Unit
+    ADB Shell    logcat -c
+
+Android Head Unit: Should Have Received Sound
+    On The Head Unit
     ${log}=    ADB Shell    logcat -d -s OPENHU:I
     Should Match Regexp    ${log}    AapAudio: AUDIO PCM timing: packets=[1-9]

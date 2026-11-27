@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# A virtual Android phone and a Linux head unit in QEMU, leased together, with their radios joined: the devices
+# of ../devices-linux-headunit, for workspace/project/tests/phone_projection_linux.robot.
+#
+# - `bluetooth`: the head unit's Bluetooth stack is one more host of the phone's controller simulator. The head
+#   unit's port is `requires` (`link: remote-controller`) and the phone's is `provides` (`link: controller-port`):
+#   the two are on one simulated air, and pair with each other as they are.
+# - `wifi`: the two simulated Wi-Fi media are on one air. Both ports are `connects`: each end runs its bridge
+#   beside its own medium.
+apiVersion: jumpstarter.dev/v1alpha1
+kind: LeaseTemplate
+metadata:
+  name: phone-and-linux-head-unit
+  namespace: jumpstarter-lab
+spec:
+  description: A virtual Android phone and a Linux head unit in QEMU, on one Bluetooth and one Wi-Fi air
+  instructions: |
+    Both devices are made anew for each lease. Power the phone on first: it has the Bluetooth controller
+    simulator that the head unit uses. j phone cuttlefish power on, j headunit qemu power on.
+  members:
+    - name: phone
+      selector:
+        matchLabels:
+          device: cf-phone-controller
+    - name: headunit
+      selector:
+        matchLabels:
+          device: qemu-headunit
+  forwards:
+    - name: bluetooth
+      endpoints:
+        - { member: headunit, port: bluetooth } # requires (link: remote-controller)
+        - { member: phone, port: bluetooth }    # provides (link: controller-port)
+    - name: wifi
+      endpoints:
+        - { member: phone, port: hwsim }
+        - { member: headunit, port: hwsim }
+  defaults:
+    duration: 2h

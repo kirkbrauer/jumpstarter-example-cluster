@@ -1,0 +1,24 @@
+#!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
+#
+# Makes the serial port whose far end is a Bluetooth controller the kernel's hci0, and keeps it so.
+#
+# btattach sets the controller up once, when it starts. Started while nothing is at the far end (the device
+# that has the controller is not powered on yet), the kernel gives the adapter up, and nothing brings it back
+# but attaching again. So: attach, and if the adapter is not up after a while, start over.
+PORT="${1:-/dev/hvc0}"
+while true; do
+    btattach -B "$PORT" -P h4 &
+    attached=$!
+    for _ in $(seq 1 10); do
+        sleep 1
+        hciconfig hci0 2>/dev/null | grep -q "UP RUNNING" && break
+    done
+    if hciconfig hci0 2>/dev/null | grep -q "UP RUNNING"; then
+        wait "$attached"    # (it stays for as long as the port does)
+    else
+        kill "$attached" 2>/dev/null
+        wait "$attached" 2>/dev/null
+    fi
+    sleep 2
+done

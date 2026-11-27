@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=The medium of the head unit's simulated Wi-Fi radio, and its frame port
+After=systemd-modules-load.service network.target
+
+[Service]
+# (no sender is left out: this radio has an address of its own)
+ExecStart=/usr/bin/python3 /usr/local/lib/headunit/wmediumd_agent.py --hwsim --listen 0.0.0.0:7310 --ignore ""
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

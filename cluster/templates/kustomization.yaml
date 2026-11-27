@@ -7,3 +7,4 @@ kind: Kustomization
 resources:
   - phone-and-head-unit.yaml
   - ipad-and-head-unit.yaml
+  - phone-and-linux-head-unit.yaml

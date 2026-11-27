@@ -1,0 +1,142 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# A virtual Android phone and a Linux head unit in QEMU, for wireless phone projection between an Android
+# device and a Linux one (workspace/project/tests/phone_projection_linux.robot).
+#
+# The phone is an ordinary Cuttlefish phone. Its Pod runs the Bluetooth controller simulator (rootcanal, HCI on
+# 127.0.0.1:7300) and offers it to the lease (`link: controller-port`); its Wi-Fi is the frame bridge beside its
+# simulated medium, as on every Cuttlefish device here.
+#
+# The head unit has no simulator of its own:
+#
+# - Bluetooth: the guest's HCI is a serial port (`serial_ports`, /dev/hvc0 in the guest, which the image makes
+#   the kernel's hci0 with `btattach -B /dev/hvc0 -P h4`). `link: remote-controller` dials its socket and is the
+#   client of the forward: the guest's BlueZ is one more host of the phone's simulator, on the same air.
+# - Wi-Fi: the guest has a `mac80211_hwsim` radio and runs the frame bridge itself (`wmediumd_agent.py --hwsim`);
+#   its frame port is the forwarded port 7310, and the `wifi` driver only has the port (`external`).
+#
+# The head unit's disk image is built by ../../images/headunit-linux: Debian 13 with BlueZ, hostapd, the
+# regulatory database and LIVI (https://github.com/f-io/LIVI), and a user `hu`. The suite flashes it at the start
+# of a lease (`--variable "HEAD UNIT IMAGE:https://…/headunit-linux-amd64.qcow2"`). At boot it does:
+#
+#     systemctl mask --now serial-getty@hvc0    # no login prompt on the HCI port
+#     btattach -B /dev/hvc0 -P h4 &             # again until hci0 is up: the phone may not be powered on yet
+#     modprobe mac80211_hwsim radios=1          # with `options cfg80211 ieee80211_regdom=US`
+#     ip link set wlan0 address 02:51:00:00:00:01
+#     python3 wmediumd_agent.py --hwsim --listen 0.0.0.0:7310 --ignore "" &
+#
+# The lease template that joins the two is ../templates/phone-and-linux-head-unit.yaml.
+#
+# It needs the exporter image to have jumpstarter-driver-qemu with `serial_ports`, jumpstarter-driver-bluetooth
+# with `guest_listens`, and jumpstarter-driver-wifi with `external`.
+apiVersion: virtualtarget.jumpstarter.dev/v1alpha1
+kind: ExporterSet
+metadata:
+  name: cf-phone-controller
+  namespace: jumpstarter-lab
+spec:
+  maxReplicas: 1
+  minAvailableReplicas: 0
+  minReplicas: 0
+  recycleStrategy: ExitAndReplace
+  scaleDownCooldown: 10s
+  selector:
+    matchLabels:
+      device: cf-phone-controller
+  template:
+    metadata:
+      labels:
+        device: cf-phone-controller
+        lab: linux-headunit
+    spec:
+      drivers:
+        - name: cuttlefish
+          type: jumpstarter_driver_cuttlefish.driver.Cuttlefish
+          config:
+            env_config:
+              instances:
+                - vm:
+                    cpus: 4
+                    memory_mb: 4096
+        - name: android
+          type: jumpstarter_driver_adb.driver.AdbDevice
+          config:
+            address: 127.0.0.1:6520
+            appium:
+              capabilities:
+                appium:settings[enableMultiWindows]: true
+              env:
+                ANDROID_HOME: /opt/android-sdk
+              home: /opt/appium-home
+            server_port: 15037
+            transport: tcp
+        - name: bluetooth
+          type: jumpstarter_driver_bluetooth.driver.Bluetooth
+          config:
+            link: controller-port
+            transport: tcp-client:127.0.0.1:7300
+            device:
+              adb: 127.0.0.1:6520
+              adb_path: /opt/android-sdk/platform-tools/adb
+        - name: wifi
+          type: jumpstarter_driver_wifi.driver.WifiMedium
+          config:
+            port: 7310
+  virtualTargetClassName: cf-phone
+---
+apiVersion: virtualtarget.jumpstarter.dev/v1alpha1
+kind: ExporterSet
+metadata:
+  name: qemu-headunit
+  namespace: jumpstarter-lab
+spec:
+  maxReplicas: 1
+  minAvailableReplicas: 0
+  minReplicas: 0
+  recycleStrategy: ExitAndReplace
+  scaleDownCooldown: 10s
+  selector:
+    matchLabels:
+      device: qemu-headunit
+  template:
+    metadata:
+      labels:
+        device: qemu-headunit
+        lab: linux-headunit
+        type: linux-head-unit
+    spec:
+      drivers:
+        - name: qemu
+          type: jumpstarter_driver_qemu.driver.Qemu
+          config:
+            arch: x86_64
+            disk_size: 10G
+            mem: 4G
+            smp: 4
+            # (the image's own user, and the name the head unit has on the air and gives its Wi-Fi network)
+            hostname: headunit
+            username: hu
+            password: headunit
+            hostfwd:
+              ssh: { hostport: 2222, guestport: 22 }
+              hwsim: { hostport: 7310, guestport: 7310 }
+            serial_ports:
+              bluetooth: { listen: 127.0.0.1:7301 }
+        # What the suite types on the head unit goes through `qemu.console`, the guest's serial console
+        # (`--variable "HEAD UNIT SHELL:console"`). SSH needs an `ssh` driver (jumpstarter_driver_ssh SSHWrapper)
+        # whose `tcp` child is `qemu.ssh`, and a driver of an ExporterSet cannot have children yet: with an
+        # exporter that is configured by a file, add it there and the suite's default (`ssh`) works.
+        - name: bluetooth
+          type: jumpstarter_driver_bluetooth.driver.Bluetooth
+          config:
+            link: remote-controller
+            guest: 127.0.0.1:7301
+            guest_listens: true
+            new_controller: hardware-error
+            listen: 127.0.0.1:7311
+        - name: wifi
+          type: jumpstarter_driver_wifi.driver.WifiMedium
+          config:
+            external: true
+            port: 7310
+  virtualTargetClassName: qemu-x86-64
