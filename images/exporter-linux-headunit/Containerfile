@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# The exporter image of the devices of cluster/devices-linux-headunit: the lab's exporter image, with three
+# drivers taken from a Jumpstarter ref that has what a Linux head unit in QEMU needs of them: the QEMU driver's
+# `serial_ports`, the Bluetooth driver's `guest_listens`, and the Wi-Fi driver's `external` bridge.
+#
+#   podman build -t <registry>/jumpstarter/exporter-linux-headunit:<tag> images/exporter-linux-headunit
+#
+# JUMPSTARTER_IMAGE is the exporter image the lab's other virtual devices run: it has the multi-exporter leases
+# and the Bluetooth and Wi-Fi drivers these three are stacked on. Only the three wheels are replaced.
+ARG JUMPSTARTER_IMAGE=jmp-registry.apps.homelab.cluster.kirkbrauer.com/jumpstarter/exporter-bluetooth-wifi:3
+
+FROM ${JUMPSTARTER_IMAGE} AS packages
+ARG JUMPSTARTER_REPO=https://github.com/jumpstarter-dev/jumpstarter.git
+ARG JUMPSTARTER_REF=feat/qemu-bluetooth-wifi-backends
+ARG JUMPSTARTER_PACKAGES="jumpstarter-driver-qemu jumpstarter-driver-bluetooth jumpstarter-driver-wifi"
+USER 0
+RUN (command -v git > /dev/null || (dnf install -y git && dnf clean all)) \
+ && git clone --filter=blob:none "${JUMPSTARTER_REPO}" /src && git -C /src checkout "${JUMPSTARTER_REF}" \
+ && mkdir -p /wheels \
+ && for package in ${JUMPSTARTER_PACKAGES}; do \
+      (cd /src/python && uv build --wheel --package "${package}" --out-dir /wheels) || exit 1; \
+    done
+
+FROM ${JUMPSTARTER_IMAGE}
+USER 0
+COPY --from=packages /wheels/ /tmp/wheels/
+RUN uv pip install --python /jumpstarter/bin/python --no-deps --reinstall /tmp/wheels/*.whl && rm -rf /tmp/wheels \
+ && /jumpstarter/bin/python -c "from jumpstarter_driver_qemu.driver import SerialPort; from jumpstarter_driver_bluetooth.controller import BluetoothRemoteController as B; from jumpstarter_driver_wifi.medium import WifiMedium as W; assert hasattr(B, 'guest_listens') and hasattr(W, 'external')"
+USER 65532
